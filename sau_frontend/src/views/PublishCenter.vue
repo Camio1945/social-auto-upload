@@ -1008,7 +1008,7 @@ const batchPublish = async () => {
   
   // Tab管理区域
   .tab-management {
-    background-color: #fff;
+    background-color: var(--el-bg-color);
     border-radius: 4px;
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
     margin-bottom: 20px;
@@ -1031,8 +1031,8 @@ const batchPublish = async () => {
            align-items: center;
            gap: 6px;
            padding: 6px 12px;
-           background-color: #f5f7fa;
-           border: 1px solid #dcdfe6;
+           background-color: var(--el-fill-color-lighter);
+           border: 1px solid var(--el-border-color);
            border-radius: 4px;
            cursor: pointer;
            transition: all 0.3s;
@@ -1040,13 +1040,13 @@ const batchPublish = async () => {
            height: 32px;
            
            &:hover {
-             background-color: #ecf5ff;
-             border-color: #b3d8ff;
+             background-color: var(--el-color-primary-light-9);
+             border-color: var(--el-color-primary-light-7);
            }
            
            &.active {
-             background-color: #409eff;
-             border-color: #409eff;
+             background-color: var(--el-color-primary);
+             border-color: var(--el-color-primary);
              color: #fff;
              
              .close-icon {
@@ -1066,7 +1066,7 @@ const batchPublish = async () => {
              font-size: 12px;
              
              &:hover {
-               background-color: rgba(0, 0, 0, 0.1);
+               background-color: rgba(255, 255, 255, 0.1);
              }
            }
          }
@@ -1149,7 +1149,7 @@ const batchPublish = async () => {
   // 内容区域
   .publish-content {
     flex: 1;
-    background-color: #fff;
+    background-color: var(--el-bg-color);
     border-radius: 4px;
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
     padding: 20px;
@@ -1165,7 +1165,7 @@ const batchPublish = async () => {
         h3 {
           font-size: 16px;
           font-weight: 500;
-          color: $text-primary;
+          color: var(--el-text-color-primary);
           margin: 0 0 10px 0;
         }
         
@@ -1242,7 +1242,7 @@ const batchPublish = async () => {
           .schedule-settings {
             margin-top: 15px;
             padding: 15px;
-            background-color: #f5f7fa;
+            background-color: var(--el-fill-color-lighter);
             border-radius: 4px;
 
             .schedule-item {
@@ -1320,7 +1320,7 @@ const batchPublish = async () => {
         display: flex;
         align-items: center;
         padding: 10px 15px;
-        background-color: #f5f7fa;
+        background-color: var(--el-fill-color-lighter);
         border-radius: 4px;
         
         .el-link {
@@ -1379,8 +1379,8 @@ const batchPublish = async () => {
             justify-content: center;
             
             &.el-button--primary {
-              background-color: #409eff;
-              border-color: #409eff;
+              background-color: var(--el-color-primary);
+              border-color: var(--el-color-primary);
               color: white;
             }
           }

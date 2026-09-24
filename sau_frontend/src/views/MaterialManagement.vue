@@ -412,13 +412,13 @@ onMounted(() => {
     h1 {
       font-size: 24px;
       font-weight: 500;
-      color: $text-primary;
+      color: var(--el-text-color-primary);
       margin: 0;
     }
   }
   
   .material-list-container {
-    background-color: #fff;
+    background-color: var(--el-bg-color);
     border-radius: 4px;
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
     padding: 20px;
@@ -495,7 +495,7 @@ onMounted(() => {
 }
 
 .upload-file-item {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--el-border-color);
   border-radius: 4px;
   padding: 10px;
   margin-bottom: 10px;
@@ -535,11 +535,11 @@ onMounted(() => {
 }
 
 .upload-file-item {
-  border: 1px solid #dcdfe6;
+  border: 1px solid var(--el-border-color);
   border-radius: 6px; /* 增加圆角 */
   padding: 12px; /* 增加内边距 */
   margin-bottom: 12px; /* 增加外边距 */
-  background-color: #fafafa; /* 轻微背景色 */
+  background-color: var(--el-fill-color-light); /* 轻微背景色 */
   transition: box-shadow 0.3s; /* 添加过渡效果 */
 }
 

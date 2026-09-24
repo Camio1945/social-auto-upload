@@ -68,13 +68,13 @@
       text-align: center;
 
       h1 {
-        color: $text-primary;
+        color: var(--el-text-color-primary);
         margin: 0 0 8px 0;
         font-size: 24px;
       }
 
       .version {
-        color: $text-secondary;
+        color: var(--el-text-color-secondary);
         font-size: 14px;
         margin: 0;
       }
@@ -85,12 +85,12 @@
 
       h3 {
         font-size: 16px;
-        color: $text-primary;
+        color: var(--el-text-color-primary);
         margin: 0 0 12px 0;
       }
 
       p {
-        color: $text-secondary;
+        color: var(--el-text-color-secondary);
         line-height: 1.8;
         margin: 0;
       }
@@ -105,7 +105,7 @@
       .feature-list {
         margin: 0;
         padding-left: 20px;
-        color: $text-secondary;
+        color: var(--el-text-color-secondary);
         line-height: 2;
       }
     }

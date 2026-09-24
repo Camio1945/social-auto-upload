@@ -46,7 +46,8 @@
               <el-icon class="toggle-sidebar" @click="toggleSidebar"><Fold /></el-icon>
             </div>
             <div class="header-right">
-              <!-- 账号信息已移除 -->
+              <span class="file-path">{{ currentFilePath }}</span>
+              <el-icon class="copy-icon" @click="copyFilePath" title="复制路径 (Ctrl+Shift+Alt+C)"><DocumentCopy /></el-icon>
             </div>
           </div>
         </el-header>
@@ -59,8 +60,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
   HomeFilled, User, DataAnalysis,
   Fold, Picture, Upload
@@ -73,6 +75,11 @@ const activeMenu = computed(() => {
   return route.path
 })
 
+// 当前页面对应的源文件路径
+const currentFilePath = computed(() => {
+  return route.meta?.filePath || ''
+})
+
 // 侧边栏折叠状态
 const isCollapse = ref(false)
 
@@ -80,6 +87,44 @@ const isCollapse = ref(false)
 const toggleSidebar = () => {
   isCollapse.value = !isCollapse.value
 }
+
+// 复制当前文件路径到剪贴板
+const copyFilePath = async () => {
+  const path = currentFilePath.value
+  if (!path) {
+    ElMessage.warning('当前页面未配置源文件路径')
+    return
+  }
+  try {
+    await navigator.clipboard.writeText(path)
+    ElMessage.success(`已复制：${path}`)
+  } catch (e) {
+    // fallback
+    const ta = document.createElement('textarea')
+    ta.value = path
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+    ElMessage.success(`已复制：${path}`)
+  }
+}
+
+// 全局快捷键：Ctrl+Shift+Alt+C
+const handleKeydown = (e) => {
+  if (e.ctrlKey && e.shiftKey && e.altKey && e.key.toLowerCase() === 'c') {
+    e.preventDefault()
+    copyFilePath()
+  }
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <style lang="scss" scoped>
@@ -146,8 +191,8 @@ const toggleSidebar = () => {
 }
 
 .el-header {
-  background-color: #fff;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  background-color: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
   padding: 0;
   height: 60px;
   
@@ -162,15 +207,40 @@ const toggleSidebar = () => {
       .toggle-sidebar {
         font-size: 20px;
         cursor: pointer;
-        color: $text-regular;
+        color: var(--el-text-color-regular);
         
         &:hover {
-          color: $primary-color;
+          color: var(--el-color-primary);
         }
       }
     }
     
     .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .file-path {
+        font-size: 12px;
+        font-family: 'Consolas', 'Monaco', monospace;
+        color: var(--el-text-color-secondary);
+        max-width: 360px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .copy-icon {
+        font-size: 16px;
+        color: var(--el-text-color-secondary);
+        cursor: pointer;
+        transition: color 0.2s;
+
+        &:hover {
+          color: var(--el-color-primary);
+        }
+      }
+
       .user-dropdown {
         display: flex;
         align-items: center;
@@ -178,12 +248,12 @@ const toggleSidebar = () => {
         
         .username {
           margin: 0 8px;
-          color: $text-regular;
+          color: var(--el-text-color-regular);
         }
         
         .el-icon {
           font-size: 12px;
-          color: $text-secondary;
+          color: var(--el-text-color-secondary);
         }
       }
     }
@@ -191,7 +261,7 @@ const toggleSidebar = () => {
 }
 
 .el-main {
-  background-color: $bg-color-page;
+  background-color: var(--el-bg-color-page);
   padding: 20px;
   overflow-y: auto;
 }

@@ -277,15 +277,16 @@ onMounted(() => {
 
     h1 {
       font-size: 24px;
-      color: $text-primary;
+      color: var(--el-text-color-primary);
       margin: 0;
     }
   }
 
   .dashboard-content {
     .stat-card {
-      height: 140px;
+      min-height: 140px;
       margin-bottom: 20px;
+      overflow: hidden;
 
       .stat-card-content {
         display: flex;
@@ -296,7 +297,7 @@ onMounted(() => {
           width: 60px;
           height: 60px;
           border-radius: 50%;
-          background-color: rgba($primary-color, 0.1);
+          background-color: rgba(var(--el-color-primary), 0.1);
           display: flex;
           justify-content: center;
           align-items: center;
@@ -304,22 +305,22 @@ onMounted(() => {
 
           .el-icon {
             font-size: 30px;
-            color: $primary-color;
+            color: var(--el-color-primary);
           }
 
           &.platform-icon {
-            background-color: rgba($success-color, 0.1);
+            background-color: rgba(var(--el-color-success), 0.1);
 
             .el-icon {
-              color: $success-color;
+              color: var(--el-color-success);
             }
           }
 
           &.content-icon {
-            background-color: rgba($info-color, 0.1);
+            background-color: rgba(var(--el-color-info), 0.1);
 
             .el-icon {
-              color: $info-color;
+              color: var(--el-color-info);
             }
           }
         }
@@ -328,25 +329,25 @@ onMounted(() => {
           .stat-value {
             font-size: 24px;
             font-weight: bold;
-            color: $text-primary;
+            color: var(--el-text-color-primary);
             line-height: 1.2;
           }
 
           .stat-label {
             font-size: 14px;
-            color: $text-secondary;
+            color: var(--el-text-color-secondary);
           }
         }
       }
 
       .stat-footer {
-        border-top: 1px solid $border-lighter;
+        border-top: 1px solid var(--el-border-color-lighter);
         padding-top: 10px;
 
         .stat-detail {
           display: flex;
           justify-content: space-between;
-          color: $text-secondary;
+          color: var(--el-text-color-secondary);
           font-size: 13px;
 
           .el-tag {
@@ -362,7 +363,7 @@ onMounted(() => {
       h2 {
         font-size: 18px;
         margin-bottom: 15px;
-        color: $text-primary;
+        color: var(--el-text-color-primary);
       }
 
       .action-card {
@@ -383,7 +384,7 @@ onMounted(() => {
           width: 50px;
           height: 50px;
           border-radius: 50%;
-          background-color: rgba($primary-color, 0.1);
+          background-color: rgba(var(--el-color-primary), 0.1);
           display: flex;
           justify-content: center;
           align-items: center;
@@ -391,20 +392,20 @@ onMounted(() => {
 
           .el-icon {
             font-size: 24px;
-            color: $primary-color;
+            color: var(--el-color-primary);
           }
         }
 
         .action-title {
           font-size: 16px;
           font-weight: bold;
-          color: $text-primary;
+          color: var(--el-text-color-primary);
           margin-bottom: 5px;
         }
 
         .action-desc {
           font-size: 13px;
-          color: $text-secondary;
+          color: var(--el-text-color-secondary);
           text-align: center;
         }
       }
@@ -421,7 +422,7 @@ onMounted(() => {
 
         h2 {
           font-size: 18px;
-          color: $text-primary;
+          color: var(--el-text-color-primary);
           margin: 0;
         }
       }
