@@ -44,6 +44,7 @@
           <div class="header-content">
             <div class="header-left">
               <el-icon class="toggle-sidebar" @click="toggleSidebar"><Fold /></el-icon>
+              <span class="page-title">{{ currentTitle }}</span>
             </div>
             <div class="header-right">
               <span class="file-path">{{ currentFilePath }}</span>
@@ -78,6 +79,11 @@ const activeMenu = computed(() => {
 // 当前页面对应的源文件路径
 const currentFilePath = computed(() => {
   return route.meta?.filePath || ''
+})
+
+// 当前页面标题
+const currentTitle = computed(() => {
+  return route.meta?.title || ''
 })
 
 // 侧边栏折叠状态
@@ -204,6 +210,10 @@ onUnmounted(() => {
     padding: 0 16px;
     
     .header-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+
       .toggle-sidebar {
         font-size: 20px;
         cursor: pointer;
@@ -212,6 +222,12 @@ onUnmounted(() => {
         &:hover {
           color: var(--el-color-primary);
         }
+      }
+
+      .page-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: var(--el-text-color-primary);
       }
     }
     

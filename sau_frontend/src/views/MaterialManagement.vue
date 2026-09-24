@@ -1,9 +1,5 @@
 <template>
   <div class="material-management">
-    <div class="page-header">
-      <h1>素材管理</h1>
-    </div>
-    
     <div class="material-list-container">
       <div class="material-search">
         <el-input

@@ -10,31 +10,31 @@ const routes = [
     path: '/',
     name: 'Dashboard',
     component: Dashboard,
-    meta: { filePath: 'sau_frontend/src/views/Dashboard.vue' }
+    meta: { title: '首页', filePath: 'sau_frontend/src/views/Dashboard.vue' }
   },
   {
     path: '/account-management',
     name: 'AccountManagement',
     component: AccountManagement,
-    meta: { filePath: 'sau_frontend/src/views/AccountManagement.vue' }
+    meta: { title: '账号管理', filePath: 'sau_frontend/src/views/AccountManagement.vue' }
   },
   {
     path: '/material-management',
     name: 'MaterialManagement',
     component: MaterialManagement,
-    meta: { filePath: 'sau_frontend/src/views/MaterialManagement.vue' }
+    meta: { title: '素材管理', filePath: 'sau_frontend/src/views/MaterialManagement.vue' }
   },
   {
     path: '/publish-center',
     name: 'PublishCenter',
     component: PublishCenter,
-    meta: { filePath: 'sau_frontend/src/views/PublishCenter.vue' }
+    meta: { title: '发布中心', filePath: 'sau_frontend/src/views/PublishCenter.vue' }
   },
   {
     path: '/about',
     name: 'About',
     component: About,
-    meta: { filePath: 'sau_frontend/src/views/About.vue' }
+    meta: { title: '关于', filePath: 'sau_frontend/src/views/About.vue' }
   }
 ]
 

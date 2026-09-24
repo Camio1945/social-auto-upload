@@ -1,9 +1,5 @@
 <template>
   <div class="account-management">
-    <div class="page-header">
-      <h1>账号管理</h1>
-    </div>
-    
     <div class="account-tabs">
       <el-tabs v-model="activeTab" class="account-tabs-nav">
         <el-tab-pane label="全部" name="all">

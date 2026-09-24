@@ -1,9 +1,5 @@
 <template>
   <div class="dashboard">
-    <div class="page-header">
-      <h1>自媒体自动化运营系统</h1>
-    </div>
-
     <div class="dashboard-content">
       <el-row :gutter="20">
         <!-- 账号统计卡片 -->
