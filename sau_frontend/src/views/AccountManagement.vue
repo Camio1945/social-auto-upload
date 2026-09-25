@@ -365,17 +365,15 @@
     >
       <el-form :model="accountForm" label-width="80px" :rules="rules" ref="accountFormRef">
         <el-form-item label="平台" prop="platform">
-          <el-select 
+          <el-radio-group 
             v-model="accountForm.platform" 
-            placeholder="请选择平台" 
-            style="width: 100%"
             :disabled="dialogType === 'edit' || sseConnecting"
           >
-            <el-option label="快手" value="快手" />
-            <el-option label="抖音" value="抖音" />
-            <el-option label="视频号" value="视频号" />
-            <el-option label="小红书" value="小红书" />
-          </el-select>
+            <el-radio-button value="抖音">抖音</el-radio-button>
+            <el-radio-button value="快手">快手</el-radio-button>
+            <el-radio-button value="视频号">视频号</el-radio-button>
+            <el-radio-button value="小红书">小红书</el-radio-button>
+          </el-radio-group>
         </el-form-item>
         <el-form-item label="名称" prop="name">
           <el-input 
