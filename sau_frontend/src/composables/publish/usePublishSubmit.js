@@ -27,10 +27,6 @@ const buildPayload = (form, platformType, accounts) => ({
   tags: form.selectedTopics, // 不带#号的话题列表
   fileList: form.fileList.map(file => file.path),
   accountList: accounts.map(account => account.filePath),
-  enableTimer: form.scheduleEnabled ? 1 : 0,
-  videosPerDay: form.scheduleEnabled ? form.videosPerDay || 1 : 1,
-  dailyTimes: form.scheduleEnabled ? form.dailyTimes || ['10:00'] : ['10:00'],
-  startDays: form.scheduleEnabled ? form.startDays || 0 : 0,
   category: form.isOriginal ? 1 : 0, // 1表示原创，0表示非原创
   // 平台专属字段只在对应平台发送
   productLink: platformType === 3 ? form.productLink.trim() : '',

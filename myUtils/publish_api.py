@@ -30,14 +30,10 @@ def build_publish_args(data):
         'title': data.get('title'),
         'tags': data.get('tags'),
         'category': category,
-        'enable_timer': data.get('enableTimer'),
         'product_link': data.get('productLink', ''),
         'product_title': data.get('productTitle', ''),
         'thumbnail': data.get('thumbnail', ''),
         'is_draft': data.get('isDraft', False),
-        'videos_per_day': data.get('videosPerDay'),
-        'daily_times': data.get('dailyTimes'),
-        'start_days': data.get('startDays'),
     }
 
 
@@ -47,21 +43,17 @@ def dispatch_publish(args):
     match platform_type:
         case 1:
             post_video_xhs(args['title'], args['file_list'], args['tags'], args['account_list'],
-                           args['category'], args['enable_timer'], args['videos_per_day'],
-                           args['daily_times'], args['start_days'])
+                           args['category'])
         case 2:
             post_video_tencent(args['title'], args['file_list'], args['tags'], args['account_list'],
-                               args['category'], args['enable_timer'], args['videos_per_day'],
-                               args['daily_times'], args['start_days'], args['is_draft'])
+                               args['category'], args['is_draft'])
         case 3:
             post_video_DouYin(args['title'], args['file_list'], args['tags'], args['account_list'],
-                              args['category'], args['enable_timer'], args['videos_per_day'],
-                              args['daily_times'], args['start_days'], args['thumbnail'],
-                              args['product_link'], args['product_title'])
+                              args['category'], args['thumbnail'], args['product_link'],
+                              args['product_title'])
         case 4:
             post_video_ks(args['title'], args['file_list'], args['tags'], args['account_list'],
-                          args['category'], args['enable_timer'], args['videos_per_day'],
-                          args['daily_times'], args['start_days'])
+                          args['category'])
         case _:
             return False
     return True

@@ -51,8 +51,7 @@
         .platform-section,
         .title-section,
         .product-section,
-        .topic-section,
-        .schedule-section {
+        .topic-section {
           margin-bottom: 30px;
         }
 
@@ -152,42 +151,6 @@
 
           .select-topic-btn {
             align-self: flex-start;
-          }
-        }
-
-        .schedule-controls {
-          display: flex;
-          flex-direction: column;
-          gap: 15px;
-
-          .schedule-settings {
-            margin-top: 15px;
-            padding: 15px;
-            background-color: var(--el-fill-color-lighter);
-            border-radius: 4px;
-
-            .schedule-item {
-              display: flex;
-              align-items: center;
-              margin-bottom: 15px;
-
-              &:last-child {
-                margin-bottom: 0;
-              }
-
-              .label {
-                min-width: 120px;
-                margin-right: 10px;
-              }
-
-              .el-time-select {
-                margin-right: 10px;
-              }
-
-              .el-button {
-                margin-left: 10px;
-              }
-            }
           }
         }
 

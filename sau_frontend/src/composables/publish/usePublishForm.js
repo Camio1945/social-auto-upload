@@ -22,10 +22,6 @@ const createDefaultForm = () => ({
   displayFileList: [], // 用于显示的文件列表
   title: '',
   selectedTopics: [], // 话题列表（不带#号）
-  scheduleEnabled: false, // 定时发布开关
-  videosPerDay: 1, // 每天发布视频数量
-  dailyTimes: ['10:00'], // 每天发布时间点列表
-  startDays: 0, // 发布开始天数：0 明天，1 后天
   isOriginal: false, // 是否声明原创
   isDraft: false, // 视频号是否仅保存草稿
   productLink: '', // 抖音商品链接
@@ -72,5 +68,4 @@ export const resetFormAfterPublish = (form) => {
   form.displayFileList = []
   form.title = ''
   form.selectedTopics = []
-  form.scheduleEnabled = false
 }

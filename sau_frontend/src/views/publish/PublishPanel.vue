@@ -12,7 +12,6 @@
     <PublishAccountSection />
     <PublishPlatformSection />
     <PublishTopicSection />
-    <PublishScheduleSection />
     <PublishActions />
   </div>
 </template>
@@ -22,7 +21,6 @@ import PublishVideoSection from './PublishVideoSection.vue'
 import PublishAccountSection from './PublishAccountSection.vue'
 import PublishPlatformSection from './PublishPlatformSection.vue'
 import PublishTopicSection from './PublishTopicSection.vue'
-import PublishScheduleSection from './PublishScheduleSection.vue'
 import PublishActions from './PublishActions.vue'
 import { usePublishContext } from '@/composables/publish/publishContext'
 
