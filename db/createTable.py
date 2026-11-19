@@ -55,6 +55,22 @@ CREATE TABLE IF NOT EXISTS file_records (
 )
 '''
 
+# 发布记录表：每次发布到某个平台写入一条记录
+# status: 0 发布中 1 成功 2 失败
+CREATE_PUBLISH_LOG_SQL = '''
+CREATE TABLE IF NOT EXISTS publish_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    userName TEXT NOT NULL,
+    type INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    fileList TEXT NOT NULL,
+    accountList TEXT NOT NULL,
+    status INTEGER NOT NULL DEFAULT 0,
+    message TEXT,
+    publishTime DATETIME DEFAULT (datetime('now', 'localtime'))
+)
+'''
+
 
 def table_exists(cursor, table_name):
     cursor.execute(
@@ -117,6 +133,7 @@ def main():
     ensure_user_info(cursor)
     ensure_user_info_unique_index(cursor)
     cursor.execute(CREATE_FILE_RECORDS_SQL)
+    cursor.execute(CREATE_PUBLISH_LOG_SQL)
 
     conn.commit()
     conn.close()

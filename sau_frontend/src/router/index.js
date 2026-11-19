@@ -4,6 +4,7 @@ import UserNameManagement from '../views/UserNameManagement.vue'
 import AccountManagement from '../views/AccountManagement.vue'
 import MaterialManagement from '../views/MaterialManagement.vue'
 import PublishCenter from '../views/PublishCenter.vue'
+import PublishHistory from '../views/PublishHistory.vue'
 import About from '../views/About.vue'
 
 const routes = [
@@ -36,6 +37,12 @@ const routes = [
     name: 'PublishCenter',
     component: PublishCenter,
     meta: { title: '发布中心', filePath: 'sau_frontend/src/views/PublishCenter.vue' }
+  },
+  {
+    path: '/publish-history',
+    name: 'PublishHistory',
+    component: PublishHistory,
+    meta: { title: '发布记录', filePath: 'sau_frontend/src/views/PublishHistory.vue' }
   },
   {
     path: '/about',

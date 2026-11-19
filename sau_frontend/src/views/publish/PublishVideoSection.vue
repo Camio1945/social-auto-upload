@@ -4,7 +4,7 @@
     <div class="upload-options">
       <el-button type="primary" @click="publish.showUploadOptions" class="upload-btn">
         <el-icon><Upload /></el-icon>
-        上传视频
+        上传或选择视频
       </el-button>
     </div>
 

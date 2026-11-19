@@ -1,5 +1,6 @@
 """发布与登录接口：扫码登录、视频发布、Cookie 上传下载。"""
 import asyncio
+import json
 import sqlite3
 import threading
 import time
@@ -17,6 +18,11 @@ publish_bp = Blueprint("publish", __name__)
 
 active_queues = {}
 
+# 发布记录状态
+PUBLISH_LOG_PENDING = 0
+PUBLISH_LOG_SUCCESS = 1
+PUBLISH_LOG_FAILED = 2
+
 
 def build_publish_args(data):
     """把前端发布数据解析为统一的参数字典。"""
@@ -28,6 +34,7 @@ def build_publish_args(data):
         'account_list': data.get('accountList', []),
         'type': data.get('type'),
         'title': data.get('title'),
+        'user_name': (data.get('userName') or '').strip(),
         'tags': data.get('tags'),
         'category': category,
         'product_link': data.get('productLink', ''),
@@ -35,6 +42,39 @@ def build_publish_args(data):
         'thumbnail': data.get('thumbnail', ''),
         'is_draft': data.get('isDraft', False),
     }
+
+
+def create_publish_log(args):
+    """发布前写入一条"发布中"记录，返回记录 id。"""
+    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+        cursor = conn.execute('''
+            INSERT INTO publish_log (userName, type, title, fileList, accountList, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            args['user_name'], args['type'], args['title'],
+            json.dumps(args['file_list'], ensure_ascii=False),
+            json.dumps(args['account_list'], ensure_ascii=False),
+            PUBLISH_LOG_PENDING
+        ))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def finish_publish_log(log_id, status, message=None):
+    """发布结束后更新记录状态。"""
+    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+        conn.execute(
+            'UPDATE publish_log SET status = ?, message = ? WHERE id = ?',
+            (status, message, log_id)
+        )
+        conn.commit()
+
+
+def deserialize_publish_log(item):
+    """把数据库中的 JSON 字段还原为列表。"""
+    item['fileList'] = json.loads(item['fileList']) if item['fileList'] else []
+    item['accountList'] = json.loads(item['accountList']) if item['accountList'] else []
+    return item
 
 
 def dispatch_publish(args):
@@ -149,13 +189,17 @@ def postVideo():
     print("File List:", args['file_list'])
     print("Account List:", args['account_list'])
 
+    # 先写入发布中记录，结束后再更新状态
+    log_id = create_publish_log(args)
     try:
         if not dispatch_publish(args):
+            finish_publish_log(log_id, PUBLISH_LOG_FAILED, f"不支持的平台类型: {args['type']}")
             return jsonify({
                 "code": 400,
                 "msg": f"不支持的平台类型: {args['type']}",
                 "data": None
             }), 400
+        finish_publish_log(log_id, PUBLISH_LOG_SUCCESS)
         return jsonify({
             "code": 200,
             "msg": "发布任务已提交",
@@ -163,6 +207,7 @@ def postVideo():
         }), 200
     except Exception as e:
         print(f"发布视频时出错: {str(e)}")
+        finish_publish_log(log_id, PUBLISH_LOG_FAILED, str(e))
         return jsonify({
             "code": 500,
             "msg": f"发布失败: {str(e)}",
@@ -188,6 +233,19 @@ def postVideoBatch():
         "msg": None,
         "data": None
     }), 200
+
+
+@publish_bp.route('/getPublishLogs', methods=['GET'])
+def get_publish_logs():
+    """按时间倒序返回发布记录。"""
+    limit = request.args.get('limit', default=200, type=int)
+    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            'SELECT * FROM publish_log ORDER BY id DESC LIMIT ?', (limit,)
+        ).fetchall()
+    data = [deserialize_publish_log(dict(row)) for row in rows]
+    return jsonify({"code": 200, "msg": None, "data": data}), 200
 
 
 # Cookie文件上传API

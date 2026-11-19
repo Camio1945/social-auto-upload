@@ -36,6 +36,10 @@
               <el-icon><Upload /></el-icon>
               <span>发布中心</span>
             </el-menu-item>
+            <el-menu-item index="/publish-history">
+              <el-icon><Document /></el-icon>
+              <span>发布记录</span>
+            </el-menu-item>
             <el-menu-item index="/about">
               <el-icon><DataAnalysis /></el-icon>
               <span>关于</span>
@@ -70,7 +74,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   HomeFilled, User, DataAnalysis,
-  Fold, Picture, Upload, CollectionTag
+  Fold, Picture, Upload, CollectionTag, Document
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

@@ -14,7 +14,16 @@ const syncDisplayFileList = (form) => {
   }))
 }
 
-// 将素材添加到文件列表（去重）
+// 文件名格式：<序号>.<名称>.<扩展名>，例如 0002.AI退潮的账别算在黄仁勋头上.mp4
+const FILE_NAME_PATTERN = /^\d+\.(.+)\.[^.]+$/
+
+// 若文件名符合格式，则自动把中间的名称填入标题
+const applyTitleFromFileName = (form, fileName) => {
+  const match = FILE_NAME_PATTERN.exec(fileName || '')
+  if (match) form.title = match[1]
+}
+
+// 将素材添加到文件列表（去重），返回是否添加成功
 const addMaterialToForm = (form, material) => {
   const fileInfo = {
     name: material.filename,
@@ -24,7 +33,23 @@ const addMaterialToForm = (form, material) => {
     type: 'video/mp4'
   }
   const exists = form.fileList.some(file => file.path === fileInfo.path)
-  if (!exists) form.fileList.push(fileInfo)
+  if (exists) return false
+  form.fileList.push(fileInfo)
+  return true
+}
+
+// 把选中的素材写入文件列表，并用第一个符合命名格式的素材名填写标题
+const applySelectedMaterials = (form, selectedMaterialIds, materials) => {
+  const addedMaterials = []
+  selectedMaterialIds.forEach(materialId => {
+    const material = materials.find(m => m.id === materialId)
+    if (material && addMaterialToForm(form, material)) {
+      addedMaterials.push(material)
+    }
+  })
+  syncDisplayFileList(form)
+  const matched = addedMaterials.find(item => FILE_NAME_PATTERN.test(item.filename))
+  if (matched) applyTitleFromFileName(form, matched.filename)
 }
 
 // 上传弹窗与文件操作
@@ -52,6 +77,8 @@ const createFileActions = (form, state) => {
       type: file.type
     })
     syncDisplayFileList(form)
+    // 文件名符合 <序号>.<名称>.<扩展名> 时自动填写标题
+    applyTitleFromFileName(form, file.name)
     ElMessage.success('文件上传成功')
   }
 
@@ -95,11 +122,7 @@ const createMaterialActions = (form, state, appStore) => {
       ElMessage.warning('请选择至少一个素材')
       return
     }
-    state.selectedMaterials.value.forEach(materialId => {
-      const material = state.materials.value.find(m => m.id === materialId)
-      if (material) addMaterialToForm(form, material)
-    })
-    syncDisplayFileList(form)
+    applySelectedMaterials(form, state.selectedMaterials.value, state.materials.value)
     ElMessage.success(`已添加 ${state.selectedMaterials.value.length} 个素材`)
     state.materialLibraryVisible.value = false
     state.selectedMaterials.value = []

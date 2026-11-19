@@ -24,6 +24,7 @@ const groupByPlatform = (accounts) => {
 const buildPayload = (form, platformType, accounts) => ({
   type: platformType,
   title: form.title.trim(),
+  userName: form.userName,
   tags: form.selectedTopics, // 不带#号的话题列表
   fileList: form.fileList.map(file => file.path),
   accountList: accounts.map(account => account.filePath),
