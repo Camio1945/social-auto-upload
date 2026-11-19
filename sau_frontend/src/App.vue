@@ -20,6 +20,10 @@
               <el-icon><HomeFilled /></el-icon>
               <span>首页</span>
             </el-menu-item>
+            <el-menu-item index="/user-name-management">
+              <el-icon><CollectionTag /></el-icon>
+              <span>名称管理</span>
+            </el-menu-item>
             <el-menu-item index="/account-management">
               <el-icon><User /></el-icon>
               <span>账号管理</span>
@@ -66,7 +70,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   HomeFilled, User, DataAnalysis,
-  Fold, Picture, Upload
+  Fold, Picture, Upload, CollectionTag
 } from '@element-plus/icons-vue'
 
 const route = useRoute()

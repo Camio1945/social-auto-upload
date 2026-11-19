@@ -187,5 +187,6 @@ db/database.db
 cookiesFile
 uploadFile
 videoFile
+docs/git_ignores/
 
 /uploader/bilibili_uploader/qrcode.png

@@ -13,9 +13,13 @@ from flask import Flask, request, jsonify, Response, render_template, send_from_
 from conf import BASE_DIR
 from myUtils.login import get_tencent_cookie, douyin_cookie_gen, get_ks_cookie, xiaohongshu_cookie_gen
 from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks, post_video_xhs
+from myUtils.user_name_api import user_name_bp
 
 active_queues = {}
 app = Flask(__name__)
+
+# 名称管理接口（user_name 表 CRUD）
+app.register_blueprint(user_name_bp)
 
 #允许所有来源跨域访问
 CORS(app)
@@ -397,6 +401,18 @@ def delete_account():
         }), 500
 
 
+# 判断账号是否已存在（供添加/编辑校验使用）
+def account_exists(platform_type, user_name, exclude_id=None):
+    """判断同一名称在同一平台是否已有账号（可排除指定账号 id）。"""
+    sql = "SELECT 1 FROM user_info WHERE type = ? AND userName = ?"
+    params = [platform_type, user_name]
+    if exclude_id is not None:
+        sql += " AND id <> ?"
+        params.append(exclude_id)
+    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+        return conn.execute(sql, params).fetchone() is not None
+
+
 # SSE 登录接口
 @app.route('/login')
 def login():
@@ -404,6 +420,19 @@ def login():
     type = request.args.get('type')
     # 账号名
     id = request.args.get('id')
+
+    # 同一名称在同一平台只能有一个账号
+    try:
+        platform_type = int(type)
+    except (TypeError, ValueError):
+        return jsonify({"code": 400, "msg": "平台类型无效", "data": None}), 400
+
+    if account_exists(platform_type, id):
+        return jsonify({
+            "code": 409,
+            "msg": "该名称已在此平台添加过账号",
+            "data": None
+        }), 409
 
     # 模拟一个用于异步通信的队列
     status_queue = Queue()
@@ -496,36 +525,48 @@ def postVideo():
         }), 500
 
 
+def update_user_info_record(user_id, platform_type, user_name):
+    """更新账号信息；违反唯一约束时抛出 IntegrityError。"""
+    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+        conn.row_factory = sqlite3.Row
+        conn.execute(
+            "UPDATE user_info SET type = ?, userName = ? WHERE id = ?",
+            (platform_type, user_name, user_id),
+        )
+        conn.commit()
+
+
 @app.route('/updateUserinfo', methods=['POST'])
 def updateUserinfo():
     # 获取JSON数据
-    data = request.get_json()
+    data = request.get_json() or {}
 
     # 从JSON数据中提取 type 和 userName
     user_id = data.get('id')
-    type = data.get('type')
-    userName = data.get('userName')
+    platform_type = data.get('type')
+    user_name = data.get('userName')
+
+    # 同一名称在同一平台只能有一个账号
+    if account_exists(platform_type, user_name, exclude_id=user_id):
+        return jsonify({
+            "code": 409,
+            "msg": "该名称已在此平台添加过账号",
+            "data": None
+        }), 409
+
     try:
-        # 获取数据库连接
-        with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-
-            # 更新数据库记录
-            cursor.execute('''
-                           UPDATE user_info
-                           SET type     = ?,
-                               userName = ?
-                           WHERE id = ?;
-                           ''', (type, userName, user_id))
-            conn.commit()
-
+        update_user_info_record(user_id, platform_type, user_name)
         return jsonify({
             "code": 200,
             "msg": "account update successfully",
             "data": None
         }), 200
-
+    except sqlite3.IntegrityError:
+        return jsonify({
+            "code": 409,
+            "msg": "该名称已在此平台添加过账号",
+            "data": None
+        }), 409
     except Exception as e:
         return jsonify({
             "code": 500,

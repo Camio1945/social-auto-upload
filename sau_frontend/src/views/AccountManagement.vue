@@ -376,11 +376,23 @@
           </el-radio-group>
         </el-form-item>
         <el-form-item label="名称" prop="name">
-          <el-input 
-            v-model="accountForm.name" 
-            placeholder="请输入账号名称" 
+          <el-select
+            v-model="accountForm.name"
+            placeholder="请选择账号名称"
+            filterable
             :disabled="sseConnecting"
-          />
+            style="width: 100%"
+          >
+            <el-option
+              v-for="item in availableNameOptions"
+              :key="item.id"
+              :label="item.userName"
+              :value="item.userName"
+            />
+          </el-select>
+          <div v-if="nameHint" class="name-empty-tip">
+            {{ nameHint }}
+          </div>
         </el-form-item>
         
         <!-- 二维码显示区域 -->
@@ -410,7 +422,7 @@
             type="primary" 
             @click="submitAccountForm" 
             :loading="sseConnecting" 
-            :disabled="sseConnecting"
+            :disabled="sseConnecting || availableNameOptions.length === 0"
           >
             {{ sseConnecting ? '请求中' : '确认' }}
           </el-button>
@@ -421,10 +433,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Refresh, CircleCheckFilled, CircleCloseFilled, Download, Upload, Loading } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { accountApi } from '@/api/account'
+import { userNameApi } from '@/api/userName'
 import { useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
 import { http } from '@/utils/request'
@@ -440,18 +453,56 @@ const activeTab = ref('all')
 // 搜索关键词
 const searchKeyword = ref('')
 
+// 可选名称列表（来自 user_name 表）
+const nameOptions = ref([])
+
+// 获取名称列表
+const fetchNameOptions = async () => {
+  try {
+    const res = await userNameApi.getUserNames()
+    if (res.code === 200 && res.data) {
+      nameOptions.value = res.data
+    }
+  } catch (error) {
+    console.error('获取名称列表失败:', error)
+  }
+}
+
+// 上次自动校验账号状态的日期（本地存储，按天去重）
+const LAST_CHECK_DATE_KEY = 'lastAccountCheckDate'
+
+// 获取本地日期字符串（YYYY-MM-DD）
+const getTodayDate = () => {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
+// 判断今天是否还未校验过账号状态
+const shouldAutoCheckToday = () => {
+  return localStorage.getItem(LAST_CHECK_DATE_KEY) !== getTodayDate()
+}
+
+// 记录今天已完成校验
+const markCheckedToday = () => {
+  localStorage.setItem(LAST_CHECK_DATE_KEY, getTodayDate())
+}
+
 // 获取账号数据（快速，不验证）
-const fetchAccountsQuick = async () => {
+// showPending 为 true 时把状态显示为"验证中"（即将在后台校验）
+const fetchAccountsQuick = async (showPending = false) => {
   try {
     const res = await accountApi.getAccounts()
     if (res.code === 200 && res.data) {
-      // 将所有账号的状态暂时设为"验证中"
-      const accountsWithPendingStatus = res.data.map(account => {
-        const updatedAccount = [...account];
-        updatedAccount[4] = -1; // -1 表示验证中的临时状态
-        return updatedAccount;
-      });
-      accountStore.setAccounts(accountsWithPendingStatus);
+      const accounts = res.data.map(account => {
+        const updatedAccount = [...account]
+        if (showPending) {
+          updatedAccount[4] = -1 // -1 表示验证中的临时状态
+        }
+        return updatedAccount
+      })
+      accountStore.setAccounts(accounts)
     }
   } catch (error) {
     console.error('快速获取账号数据失败:', error)
@@ -468,6 +519,7 @@ const fetchAccounts = async () => {
     const res = await accountApi.getValidAccounts()
     if (res.code === 200 && res.data) {
       accountStore.setAccounts(res.data)
+      markCheckedToday()
       ElMessage.success('账号数据获取成功')
       // 标记为已访问
       if (appStore.isFirstTimeAccountManagement) {
@@ -492,6 +544,7 @@ const validateAllAccountsInBackground = async () => {
       const res = await accountApi.getValidAccounts()
       if (res.code === 200 && res.data) {
         accountStore.setAccounts(res.data)
+        markCheckedToday()
       }
     } catch (error) {
       console.error('后台验证账号失败:', error)
@@ -501,13 +554,21 @@ const validateAllAccountsInBackground = async () => {
 
 // 页面加载时获取账号数据
 onMounted(() => {
-  // 快速获取账号列表（不验证），立即显示
-  fetchAccountsQuick()
+  // 加载可选名称
+  fetchNameOptions()
 
-  // 在后台验证所有账号
-  setTimeout(() => {
-    validateAllAccountsInBackground()
-  }, 100) // 稍微延迟一下，让用户看到快速加载的效果
+  // 每天只自动校验一次账号状态，其余时间直接展示上次的校验结果
+  const autoCheckNeeded = shouldAutoCheckToday()
+
+  // 快速获取账号列表（不验证），立即显示
+  fetchAccountsQuick(autoCheckNeeded)
+
+  // 今天尚未校验过时，才在后台验证所有账号
+  if (autoCheckNeeded) {
+    setTimeout(() => {
+      validateAllAccountsInBackground()
+    }, 100) // 稍微延迟一下，让用户看到快速加载的效果
+  }
 })
 
 // 获取平台标签类型
@@ -591,8 +652,39 @@ const accountForm = reactive({
 // 表单验证规则
 const rules = {
   platform: [{ required: true, message: '请选择平台', trigger: 'change' }],
-  name: [{ required: true, message: '请输入账号名称', trigger: 'blur' }]
+  name: [{ required: true, message: '请选择账号名称', trigger: 'change' }]
 }
+
+// 当前平台上已被其他账号占用的名称（编辑时排除自身）
+const usedNamesForPlatform = computed(() => {
+  return new Set(
+    accountStore.accounts
+      .filter(acc => acc.platform === accountForm.platform && acc.id !== accountForm.id)
+      .map(acc => acc.name)
+  )
+})
+
+// 当前平台可选的名称：同一名称在同一平台只能有一个账号
+const availableNameOptions = computed(() => {
+  return nameOptions.value.filter(item => !usedNamesForPlatform.value.has(item.userName))
+})
+
+// 名称下拉提示文案
+const nameHint = computed(() => {
+  if (nameOptions.value.length === 0) return '暂无可选名称，请先在「名称管理」中添加'
+  if (availableNameOptions.value.length === 0) return '该平台下所有名称均已有账号'
+  return ''
+})
+
+// 切换平台后，若已选名称在新平台已被占用则清空
+watch(() => accountForm.platform, () => {
+  if (!accountForm.name) return
+  const stillAvailable = availableNameOptions.value
+    .some(item => item.userName === accountForm.name)
+  if (!stillAvailable) {
+    accountForm.name = ''
+  }
+})
 
 // SSE连接状态
 const sseConnecting = ref(false)
@@ -609,6 +701,8 @@ const tabPlatformMap = {
 
 // 添加账号
 const handleAddAccount = () => {
+  // 每次打开时刷新名称下拉，确保能选到「名称管理」中新建的名称
+  fetchNameOptions()
   dialogType.value = 'add'
   Object.assign(accountForm, {
     id: null,
@@ -625,6 +719,8 @@ const handleAddAccount = () => {
 
 // 编辑账号
 const handleEdit = (row) => {
+  // 每次打开时刷新名称下拉
+  fetchNameOptions()
   dialogType.value = 'edit'
   Object.assign(accountForm, {
     id: row.id,
@@ -959,6 +1055,13 @@ onBeforeUnmount(() => {
     .account-tabs-nav {
       padding: 20px;
     }
+  }
+
+  .name-empty-tip {
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--el-text-color-secondary);
   }
   
   .account-list-container {

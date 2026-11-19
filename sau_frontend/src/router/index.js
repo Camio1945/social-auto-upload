@@ -1,5 +1,6 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import Dashboard from '../views/Dashboard.vue'
+import UserNameManagement from '../views/UserNameManagement.vue'
 import AccountManagement from '../views/AccountManagement.vue'
 import MaterialManagement from '../views/MaterialManagement.vue'
 import PublishCenter from '../views/PublishCenter.vue'
@@ -11,6 +12,12 @@ const routes = [
     name: 'Dashboard',
     component: Dashboard,
     meta: { title: '首页', filePath: 'sau_frontend/src/views/Dashboard.vue' }
+  },
+  {
+    path: '/user-name-management',
+    name: 'UserNameManagement',
+    component: UserNameManagement,
+    meta: { title: '名称管理', filePath: 'sau_frontend/src/views/UserNameManagement.vue' }
   },
   {
     path: '/account-management',
