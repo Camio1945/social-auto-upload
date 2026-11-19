@@ -5,21 +5,18 @@
     <!-- 选择名称 -->
     <div class="user-name-row">
       <span class="label">名称：</span>
-      <el-select
-        v-model="publish.form.userName"
-        placeholder="请选择名称"
-        filterable
-        clearable
-        class="user-name-select"
-        :loading="publish.accountLoading"
-      >
-        <el-option
+      <el-radio-group v-model="publish.form.userName" class="user-name-radios">
+        <el-radio
           v-for="item in publish.userNames"
           :key="item.id"
-          :label="item.userName"
           :value="item.userName"
-        />
-      </el-select>
+        >
+          {{ item.userName }}
+        </el-radio>
+      </el-radio-group>
+      <span v-if="publish.userNames.length === 0" class="platform-hint">
+        暂无名称，请先在「名称管理」中添加
+      </span>
     </div>
 
     <!-- 该名称下的账号，可多选 -->

@@ -34,6 +34,36 @@ const createDefaultForm = () => ({
   publishing: false // 是否正在发布
 })
 
+// 发布页选择状态的本地存储键（名称、账号、原创声明）
+const PUBLISH_STATE_KEY = 'publishCenterSelection'
+
+// 保存名称、账号与原创声明到本地存储
+export const savePublishState = (form) => {
+  try {
+    localStorage.setItem(PUBLISH_STATE_KEY, JSON.stringify({
+      userName: form.userName,
+      accountIds: form.accountIds,
+      isOriginal: form.isOriginal
+    }))
+  } catch (error) {
+    console.error('保存发布页选择状态失败:', error)
+  }
+}
+
+// 从本地存储恢复名称、账号与原创声明
+export const applyPersistedPublishState = (form) => {
+  try {
+    const raw = localStorage.getItem(PUBLISH_STATE_KEY)
+    if (!raw) return
+    const state = JSON.parse(raw)
+    if (typeof state.userName === 'string') form.userName = state.userName
+    if (Array.isArray(state.accountIds)) form.accountIds = state.accountIds
+    if (typeof state.isOriginal === 'boolean') form.isOriginal = state.isOriginal
+  } catch (error) {
+    console.error('读取发布页选择状态失败:', error)
+  }
+}
+
 export const createPublishForm = () => reactive(createDefaultForm())
 
 // 发布成功后重置内容，保留名称与已选账号方便连续发布

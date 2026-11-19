@@ -67,7 +67,9 @@
         .account-section {
           .user-name-row {
             display: flex;
+            flex-wrap: wrap;
             align-items: center;
+            gap: 8px;
             margin-bottom: 15px;
 
             .label {
@@ -75,8 +77,19 @@
               color: var(--el-text-color-regular);
             }
 
-            .user-name-select {
-              width: 300px;
+            .user-name-radios {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 4px 16px;
+
+              .el-radio {
+                margin-right: 0;
+              }
+            }
+
+            .platform-hint {
+              font-size: 13px;
+              color: var(--el-text-color-secondary);
             }
           }
 

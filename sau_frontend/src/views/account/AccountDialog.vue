@@ -17,20 +17,19 @@
         </el-radio-group>
       </el-form-item>
       <el-form-item label="名称" prop="name">
-        <el-select
+        <el-radio-group
           v-model="form.name"
-          placeholder="请选择账号名称"
-          filterable
           :disabled="sseConnecting"
-          style="width: 100%"
+          class="name-radio-group"
         >
-          <el-option
+          <el-radio
             v-for="item in nameOptions"
             :key="item.id"
-            :label="item.userName"
             :value="item.userName"
-          />
-        </el-select>
+          >
+            {{ item.userName }}
+          </el-radio>
+        </el-radio-group>
         <div v-if="nameHint" class="name-empty-tip">
           {{ nameHint }}
         </div>
@@ -112,6 +111,16 @@ const confirm = () => {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+.name-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+
+  :deep(.el-radio) {
+    margin-right: 0;
   }
 }
 
