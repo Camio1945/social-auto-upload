@@ -636,6 +636,8 @@ class DouYinBaseUploader(BaseVideoUploader):
 
 
 class DouYinVideo(DouYinBaseUploader):
+    MAX_UPLOAD_RETRIES = 3
+
     def __init__(
         self,
         title,
@@ -989,7 +991,9 @@ class DouYinVideo(DouYinBaseUploader):
             permissions=["geolocation"],
             no_viewport=True,
         )
-        context = await set_init_script(context)
+        # 注意：这里不能注入 stealth —— 实测它会让发布页的 byte-uploader 创建
+        # blob: Worker 被页面 CSP 拦截，视频一直停在「0% 文件解析中」，随后报上传失败。
+        context = await set_init_script(context, enable_stealth=False)
 
         page = await context.new_page()
         await page.goto("https://creator.douyin.com/creator-micro/content/upload", wait_until="domcontentloaded", timeout=90000)
@@ -1037,6 +1041,7 @@ class DouYinVideo(DouYinBaseUploader):
         await self.fill_title_and_description(page, self.title, self.desc, self.tags)
         douyin_logger.info(_msg("🏷️", f"小人一共贴了 {len(self.tags)} 个话题"))
 
+        upload_retries = 0
         while True:
             try:
                 number = await page.locator('[class^="long-card"] div:has-text("重新上传")').count()
@@ -1046,8 +1051,15 @@ class DouYinVideo(DouYinBaseUploader):
                 douyin_logger.info(_msg("🏃", "小人正在努力上传视频"))
                 await asyncio.sleep(2)
                 if await page.locator('div.progress-div > div:has-text("上传失败")').count():
-                    douyin_logger.error(_msg("😵", "检测到上传失败，小人准备重试"))
+                    upload_retries += 1
+                    if upload_retries > self.MAX_UPLOAD_RETRIES:
+                        await context.close()
+                        await browser.close()
+                        raise RuntimeError(f"视频上传连续失败 {self.MAX_UPLOAD_RETRIES} 次，已停止重试")
+                    douyin_logger.error(_msg("😵", f"检测到上传失败（第 {upload_retries} 次），小人准备重试"))
                     await self.handle_upload_error(page)
+            except RuntimeError:
+                raise
             except Exception:
                 douyin_logger.debug(_msg("🧍", "小人还在等视频上传完成"))
                 await asyncio.sleep(2)
@@ -1249,7 +1261,8 @@ class DouYinNote(DouYinBaseUploader):
             permissions=["geolocation"],
             no_viewport=True,
         )
-        context = await set_init_script(context)
+        # 同视频发布：stealth 会破坏抖音发布页的 blob: Worker，图片/视频解析都会卡住。
+        context = await set_init_script(context, enable_stealth=False)
 
         upload_success = False
         try:

@@ -18,7 +18,15 @@ def get_cli_action() -> List[str]:
     return ["upload", "login", "watch"]
 
 
-async def set_init_script(context):
+async def set_init_script(context, enable_stealth: bool = True):
+    """注入 stealth 脚本。
+
+    enable_stealth=False 时不注入：实测 stealth 会让抖音发布页的
+    byte-uploader 创建 blob: Worker 被页面 CSP 拦截，视频一直卡在
+    「0% 文件解析中」，60s 后报 1003000 上传失败。
+    """
+    if not enable_stealth:
+        return context
     stealth_js_path = Path(BASE_DIR / "utils/stealth.min.js")
     await context.add_init_script(path=stealth_js_path)
     return context
