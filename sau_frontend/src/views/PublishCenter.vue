@@ -256,8 +256,8 @@
             width="600px"
             class="account-dialog"
           >
-            <div class="account-dialog-content">
-              <el-checkbox-group v-model="tempSelectedAccounts">
+            <div class="account-dialog-content" v-loading="accountLoading">
+              <el-checkbox-group v-if="availableAccounts.length > 0" v-model="tempSelectedAccounts">
                 <div class="account-list">
                   <el-checkbox
                     v-for="account in availableAccounts"
@@ -271,6 +271,11 @@
                   </el-checkbox>
                 </div>
               </el-checkbox-group>
+              <el-empty
+                v-else-if="!accountLoading"
+                description="当前平台暂无可用账号，请先在「账号管理」中添加账号或切换发布平台"
+                :image-size="80"
+              />
             </div>
 
             <template #footer>
@@ -496,6 +501,7 @@ import { Upload, Plus, Close, Folder } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAccountStore } from '@/stores/account'
 import { useAppStore } from '@/stores/app'
+import { accountApi } from '@/api/account'
 import { materialApi } from '@/api/material'
 import { http } from '@/utils/request'
 
@@ -577,6 +583,7 @@ const tabs = reactive([
 const accountDialogVisible = ref(false)
 const tempSelectedAccounts = ref([])
 const currentTab = ref(null)
+const accountLoading = ref(false)
 
 // 获取账号状态管理
 const accountStore = useAccountStore()
@@ -725,11 +732,30 @@ const confirmTopicSelection = () => {
 }
 
 // 账号选择相关方法
+// 从后端获取账号列表（快速获取，不做cookie验证）
+const loadAccounts = async () => {
+  try {
+    const res = await accountApi.getAccounts()
+    if (res.code === 200 && res.data) {
+      accountStore.setAccounts(res.data)
+    } else {
+      ElMessage.error('获取账号列表失败')
+    }
+  } catch (error) {
+    console.error('获取账号列表失败:', error)
+    ElMessage.error('获取账号列表失败')
+  } finally {
+    accountLoading.value = false
+  }
+}
+
 // 打开账号选择弹窗
-const openAccountDialog = (tab) => {
+const openAccountDialog = async (tab) => {
   currentTab.value = tab
   tempSelectedAccounts.value = [...tab.selectedAccounts]
+  accountLoading.value = true
   accountDialogVisible.value = true
+  await loadAccounts()
 }
 
 // 确认账号选择

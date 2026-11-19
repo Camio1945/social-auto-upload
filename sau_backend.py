@@ -1,5 +1,6 @@
 import asyncio
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -9,7 +10,6 @@ from queue import Queue
 from flask_cors import CORS
 from myUtils.auth import check_cookie
 from flask import Flask, request, jsonify, Response, render_template, send_from_directory
-from werkzeug.utils import secure_filename
 from conf import BASE_DIR
 from myUtils.login import get_tencent_cookie, douyin_cookie_gen, get_ks_cookie, xiaohongshu_cookie_gen
 from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks, post_video_xhs
@@ -25,6 +25,23 @@ app.config['MAX_CONTENT_LENGTH'] = 160 * 1024 * 1024
 
 # 获取当前目录（假设 index.html 和 assets 在这里）
 current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 素材文件存放目录（videoFile 在 .gitignore 中，可能不存在，上传前需确保创建）
+VIDEO_DIR = BASE_DIR / "videoFile"
+_ILLEGAL_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def ensure_video_dir() -> Path:
+    """确保素材目录存在，避免首次上传时 file.save 抛 FileNotFoundError。"""
+    VIDEO_DIR.mkdir(parents=True, exist_ok=True)
+    return VIDEO_DIR
+
+
+def safe_filename(name: str) -> str:
+    """保留中文等 Unicode 字符，仅替换文件系统非法字符。"""
+    name = os.path.basename(name.replace('\\', '/'))
+    name = _ILLEGAL_FILENAME_CHARS.sub('_', name).strip().strip('.')
+    return name
 
 # 处理所有静态资源请求（未来打包用）
 @app.route('/assets/<filename>')
@@ -64,10 +81,10 @@ def upload_file():
         # 保存文件到指定位置
         uuid_v1 = uuid.uuid1()
         print(f"UUID v1: {uuid_v1}")
-        safe_name = secure_filename(file.filename)
+        safe_name = safe_filename(file.filename)
         if not safe_name:
             return jsonify({"code": 400, "data": None, "msg": "Invalid filename"}), 400
-        filepath = Path(BASE_DIR / "videoFile" / f"{uuid_v1}_{safe_name}")
+        filepath = Path(ensure_video_dir() / f"{uuid_v1}_{safe_name}")
         file.save(filepath)
         return jsonify({"code":200,"msg": "File uploaded successfully", "data": f"{uuid_v1}_{safe_name}"}), 200
     except Exception as e:
@@ -112,9 +129,9 @@ def upload_save():
     # 获取表单中的自定义文件名（可选）
     custom_filename = request.form.get('filename', None)
     if custom_filename:
-        filename = secure_filename(custom_filename + "." + file.filename.split('.')[-1])
+        filename = safe_filename(custom_filename + "." + file.filename.split('.')[-1])
     else:
-        filename = secure_filename(file.filename)
+        filename = safe_filename(file.filename)
     if not filename:
         return jsonify({"code": 400, "data": None, "msg": "Invalid filename"}), 400
 
@@ -125,7 +142,7 @@ def upload_save():
 
         # 构造文件名和路径
         final_filename = f"{uuid_v1}_{filename}"
-        filepath = Path(BASE_DIR / "videoFile" / f"{uuid_v1}_{filename}")
+        filepath = Path(ensure_video_dir() / final_filename)
 
         # 保存文件
         file.save(filepath)

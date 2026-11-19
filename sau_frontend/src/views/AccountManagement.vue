@@ -55,7 +55,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="操作" width="420">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
@@ -125,7 +125,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="操作" width="420">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
@@ -195,7 +195,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="操作" width="420">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
@@ -265,7 +265,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="操作" width="420">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
@@ -335,7 +335,7 @@
                     </el-tag>
                   </template>
                 </el-table-column>
-                <el-table-column label="操作">
+                <el-table-column label="操作" width="420">
                   <template #default="scope">
                     <el-button size="small" @click="handleEdit(scope.row)">编辑</el-button>
                     <el-button size="small" type="primary" :icon="Download" @click="handleDownloadCookie(scope.row)">下载Cookie</el-button>
@@ -599,13 +599,21 @@ const sseConnecting = ref(false)
 const qrCodeData = ref('')
 const loginStatus = ref('')
 
+// 标签页与平台的对应关系
+const tabPlatformMap = {
+  douyin: '抖音',
+  kuaishou: '快手',
+  channels: '视频号',
+  xiaohongshu: '小红书'
+}
+
 // 添加账号
 const handleAddAccount = () => {
   dialogType.value = 'add'
   Object.assign(accountForm, {
     id: null,
     name: '',
-    platform: '',
+    platform: tabPlatformMap[activeTab.value] || '',
     status: '正常'
   })
   // 重置SSE状态
