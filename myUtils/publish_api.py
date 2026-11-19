@@ -61,19 +61,36 @@ def create_publish_log(args):
 
 
 def finish_publish_log(log_id, status, message=None):
-    """发布结束后更新记录状态。"""
-    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-        conn.execute(
-            'UPDATE publish_log SET status = ?, message = ? WHERE id = ?',
-            (status, message, log_id)
-        )
-        conn.commit()
+    """发布结束后更新记录状态；更新失败不影响发布结果。"""
+    if log_id is None:
+        return
+    try:
+        with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+            conn.execute(
+                'UPDATE publish_log SET status = ?, message = ? WHERE id = ?',
+                (status, message, log_id)
+            )
+            conn.commit()
+    except Exception as e:
+        print(f"更新发布记录失败: {e}")
+
+
+def log_publish_start(args):
+    """写入发布中记录；写入失败时返回 None，不阻断发布。"""
+    try:
+        return create_publish_log(args)
+    except Exception as e:
+        print(f"写入发布记录失败: {e}")
+        return None
 
 
 def deserialize_publish_log(item):
-    """把数据库中的 JSON 字段还原为列表。"""
-    item['fileList'] = json.loads(item['fileList']) if item['fileList'] else []
-    item['accountList'] = json.loads(item['accountList']) if item['accountList'] else []
+    """把数据库中的 JSON 字段还原为列表；损坏数据按空列表处理。"""
+    for field in ('fileList', 'accountList'):
+        try:
+            item[field] = json.loads(item[field]) if item[field] else []
+        except (TypeError, ValueError):
+            item[field] = []
     return item
 
 
@@ -189,8 +206,8 @@ def postVideo():
     print("File List:", args['file_list'])
     print("Account List:", args['account_list'])
 
-    # 先写入发布中记录，结束后再更新状态
-    log_id = create_publish_log(args)
+    # 先写入发布中记录，结束后再更新状态（记录失败不影响发布）
+    log_id = log_publish_start(args)
     try:
         if not dispatch_publish(args):
             finish_publish_log(log_id, PUBLISH_LOG_FAILED, f"不支持的平台类型: {args['type']}")
@@ -226,7 +243,15 @@ def postVideoBatch():
         args = build_publish_args(data)
         print("File List:", args['file_list'])
         print("Account List:", args['account_list'])
-        dispatch_publish(args)
+        log_id = log_publish_start(args)
+        try:
+            if not dispatch_publish(args):
+                finish_publish_log(log_id, PUBLISH_LOG_FAILED, f"不支持的平台类型: {args['type']}")
+                continue
+            finish_publish_log(log_id, PUBLISH_LOG_SUCCESS)
+        except Exception as e:
+            print(f"批量发布时出错: {e}")
+            finish_publish_log(log_id, PUBLISH_LOG_FAILED, str(e))
 
     return jsonify({
         "code": 200,
@@ -239,13 +264,21 @@ def postVideoBatch():
 def get_publish_logs():
     """按时间倒序返回发布记录。"""
     limit = request.args.get('limit', default=200, type=int)
-    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            'SELECT * FROM publish_log ORDER BY id DESC LIMIT ?', (limit,)
-        ).fetchall()
-    data = [deserialize_publish_log(dict(row)) for row in rows]
-    return jsonify({"code": 200, "msg": None, "data": data}), 200
+    try:
+        with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                'SELECT * FROM publish_log ORDER BY id DESC LIMIT ?', (limit,)
+            ).fetchall()
+        data = [deserialize_publish_log(dict(row)) for row in rows]
+        return jsonify({"code": 200, "msg": None, "data": data}), 200
+    except Exception as e:
+        print(f"获取发布记录失败: {e}")
+        return jsonify({
+            "code": 500,
+            "msg": f"获取发布记录失败: {e}",
+            "data": None
+        }), 500
 
 
 # Cookie文件上传API

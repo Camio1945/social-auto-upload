@@ -22,7 +22,7 @@
         <el-table-column prop="title" label="标题" min-width="220" show-overflow-tooltip />
         <el-table-column label="视频" min-width="200" show-overflow-tooltip>
           <template #default="scope">
-            {{ scope.row.fileList.join('、') }}
+            {{ formatFileNames(scope.row.fileList) }}
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -68,6 +68,13 @@ const getStatusText = (status) => {
   if (status === 1) return '成功'
   if (status === 2) return '失败'
   return '发布中'
+}
+
+// 去掉上传时添加的 UUID 前缀，便于阅读
+const formatFileNames = (fileList) => {
+  return (fileList || [])
+    .map(name => name.split('_').slice(1).join('_') || name)
+    .join('、')
 }
 
 // 获取发布记录
