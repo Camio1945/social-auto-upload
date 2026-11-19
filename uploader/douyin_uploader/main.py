@@ -11,7 +11,7 @@ from patchright.async_api import Page
 from patchright.async_api import Playwright
 from patchright.async_api import async_playwright
 
-from conf import BASE_DIR, DEBUG_MODE, LOCAL_CHROME_HEADLESS, LOCAL_CHROME_PATH
+from conf import BASE_DIR, DEBUG_MODE, LOCAL_CHROME_HEADLESS, LOCAL_CHROME_PATH, get_browser_options
 from uploader.base_video import BaseVideoUploader
 from utils.base_social_media import set_init_script
 from utils.login_qrcode import build_login_qrcode_path
@@ -27,6 +27,16 @@ DOUYIN_PUBLISH_STRATEGY_SCHEDULED = "scheduled"
 
 def _msg(emoji: str, text: str) -> str:
     return f"{emoji} {text}"
+
+
+def _launch_options(headless: bool | None = None, extra_args: list[str] | None = None) -> dict:
+    """统一使用本地 Chrome 启动，避免依赖未安装的 Playwright 内置 Chromium。"""
+    options = get_browser_options()
+    if headless is not None:
+        options["headless"] = headless
+    if extra_args:
+        options["args"] = [*options.get("args", []), *extra_args]
+    return options
 
 
 async def _read_verify_code(code_file: str) -> str:
@@ -114,7 +124,7 @@ async def cookie_auth(account_file):
         return False
 
     use_headless = os.environ.get("DOUYIN_COOKIE_AUTH_HEADLESS", "true").lower() in ("1", "true", "yes")
-    launch_kwargs = {"headless": use_headless, "channel": "chromium", "args": ["--no-sandbox", "--disable-blink-features=AutomationControlled"]}
+    launch_kwargs = _launch_options(headless=use_headless, extra_args=["--no-sandbox"])
     for _attempt in range(3):
         async with async_playwright() as playwright:
             browser = await playwright.chromium.launch(**launch_kwargs)
@@ -276,7 +286,7 @@ async def douyin_cookie_gen(
             context = browser.contexts[0] if browser.contexts else await browser.new_context()
             should_close_context = False
         else:
-            browser = await playwright.chromium.launch(headless=headless, channel="chromium")
+            browser = await playwright.chromium.launch(**_launch_options(headless=headless))
             context = await browser.new_context()
             should_close_context = True
         context = await set_init_script(context)
@@ -973,10 +983,11 @@ class DouYinVideo(DouYinBaseUploader):
         await self.validate_upload_args()
         douyin_logger.info(_msg("🥳", "上传前检查通过"))
 
-        browser = await playwright.chromium.launch(headless=self.headless, channel="chromium", args=["--no-sandbox", "--disable-blink-features=AutomationControlled"])
+        browser = await playwright.chromium.launch(**_launch_options(headless=self.headless, extra_args=["--no-sandbox"]))
         context = await browser.new_context(
             storage_state=f"{self.account_file}",
             permissions=["geolocation"],
+            no_viewport=True,
         )
         context = await set_init_script(context)
 
@@ -1232,10 +1243,11 @@ class DouYinNote(DouYinBaseUploader):
         await self.validate_upload_args()
         douyin_logger.info(_msg("🥳", "图文上传前检查通过"))
 
-        browser = await playwright.chromium.launch(headless=self.headless, channel="chromium", args=["--no-sandbox", "--disable-blink-features=AutomationControlled"])
+        browser = await playwright.chromium.launch(**_launch_options(headless=self.headless, extra_args=["--no-sandbox"]))
         context = await browser.new_context(
             storage_state=f"{self.account_file}",
             permissions=["geolocation"],
+            no_viewport=True,
         )
         context = await set_init_script(context)
 

@@ -624,13 +624,15 @@ class KSVideo(KSBaseUploader):
             browser = await playwright.chromium.launch(
                 headless=self.headless,
                 executable_path=self.local_executable_path,
+                args=["--start-maximized"],
             )
         else:
             browser = await playwright.chromium.launch(
                 headless=self.headless,
                 channel="chromium",
+                args=["--start-maximized"],
             )
-        context = await browser.new_context(storage_state=self.account_file)
+        context = await browser.new_context(storage_state=self.account_file, no_viewport=True)
         context = await set_init_script(context)
 
         upload_success = False
@@ -885,13 +887,15 @@ class KSNote(KSBaseUploader):
             browser = await playwright.chromium.launch(
                 headless=self.headless,
                 executable_path=self.local_executable_path,
+                args=["--start-maximized"],
             )
         else:
             browser = await playwright.chromium.launch(
                 headless=self.headless,
                 channel="chromium",
+                args=["--start-maximized"],
             )
-        context = await browser.new_context(storage_state=self.account_file)
+        context = await browser.new_context(storage_state=self.account_file, no_viewport=True)
         context = await set_init_script(context)
 
         upload_success = False

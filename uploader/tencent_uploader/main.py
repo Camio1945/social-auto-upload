@@ -70,7 +70,7 @@ def _build_login_result(
 
 
 def _build_launch_kwargs(headless: bool) -> dict:
-    launch_kwargs = {"headless": headless}
+    launch_kwargs = {"headless": headless, "args": ["--start-maximized"]}
     if LOCAL_CHROME_PATH:
         launch_kwargs["executable_path"] = LOCAL_CHROME_PATH
     else:
@@ -1109,7 +1109,7 @@ class TencentVideo(TencentBaseUploader):
         tencent_logger.info(_msg("🥳", "上传前检查通过"))
 
         browser = await playwright.chromium.launch(**_build_launch_kwargs(headless=self.headless))
-        context = await browser.new_context(storage_state=self.account_file)
+        context = await browser.new_context(storage_state=self.account_file, no_viewport=True)
 
         try:
             page = await context.new_page()
@@ -1215,7 +1215,7 @@ class TencentNote(TencentBaseUploader):
         tencent_logger.info(_msg("🥳", "图文上传前检查通过"))
 
         browser = await playwright.chromium.launch(**_build_launch_kwargs(headless=self.headless))
-        context = await browser.new_context(storage_state=self.account_file)
+        context = await browser.new_context(storage_state=self.account_file, no_viewport=True)
         context = await set_init_script(context)
 
         try:

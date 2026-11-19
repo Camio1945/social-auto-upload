@@ -11,7 +11,7 @@ from patchright.async_api import Page
 from patchright.async_api import Playwright
 from patchright.async_api import async_playwright
 
-from conf import DEBUG_MODE, LOCAL_CHROME_HEADLESS, LOCAL_CHROME_PATH
+from conf import DEBUG_MODE, LOCAL_CHROME_HEADLESS, LOCAL_CHROME_PATH, get_browser_options
 from uploader.base_video import BaseVideoUploader
 from utils.base_social_media import set_init_script
 from utils.login_qrcode import build_login_qrcode_path
@@ -42,6 +42,16 @@ def _build_xhs_creator_url(path: str) -> str:
 
 def _msg(emoji: str, text: str) -> str:
     return f"{emoji} {text}"
+
+
+def _launch_options(headless: bool | None = None, extra_args: list[str] | None = None) -> dict:
+    """统一使用本地 Chrome 启动，避免依赖未安装的 Playwright 内置 Chromium。"""
+    options = get_browser_options()
+    if headless is not None:
+        options["headless"] = headless
+    if extra_args:
+        options["args"] = [*options.get("args", []), *extra_args]
+    return options
 
 
 async def _js_click_by_text(page: Page, text: str) -> bool:
@@ -179,10 +189,7 @@ async def cookie_auth(account_file):
         return False
 
     async with async_playwright() as playwright:
-        if LOCAL_CHROME_PATH:
-            browser = await playwright.chromium.launch(headless=True, executable_path=LOCAL_CHROME_PATH)
-        else:
-            browser = await playwright.chromium.launch(headless=True, channel="chromium")
+        browser = await playwright.chromium.launch(**_launch_options(headless=True))
         try:
             context = await browser.new_context(storage_state=account_file)
             context = await set_init_script(context)
@@ -253,7 +260,7 @@ async def xiaohongshu_cookie_gen(
     account_path.parent.mkdir(parents=True, exist_ok=True)
 
     async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(headless=headless, channel="chromium")
+        browser = await playwright.chromium.launch(**_launch_options(headless=headless))
         context = await browser.new_context()
         context = await set_init_script(context)
         qrcode_path = None
@@ -702,10 +709,11 @@ class XiaoHongShuVideo(XiaoHongShuBaseUploader):
         xiaohongshu_logger.info(_msg("🧍", "小人先检查 cookie、视频文件、封面和发布时间"))
         await self.validate_upload_args()
         xiaohongshu_logger.info(_msg("🥳", "上传前检查通过"))
-        browser = await playwright.chromium.launch(headless=self.headless, channel="chromium")
+        browser = await playwright.chromium.launch(**_launch_options(headless=self.headless))
         context = await browser.new_context(
             permissions=["geolocation"],
             storage_state=self.account_file,
+            no_viewport=True,
         )
         context = await set_init_script(context)
 
@@ -825,10 +833,11 @@ class XiaoHongShuNote(XiaoHongShuBaseUploader):
         xiaohongshu_logger.info(_msg("🧍", "小人先检查 cookie、图片和发布时间"))
         await self.validate_upload_args()
         xiaohongshu_logger.info(_msg("🥳", "图文上传前检查通过"))
-        browser = await playwright.chromium.launch(headless=self.headless, channel="chromium")
+        browser = await playwright.chromium.launch(**_launch_options(headless=self.headless))
         context = await browser.new_context(
             permissions=["geolocation"],
             storage_state=self.account_file,
+            no_viewport=True,
         )
         context = await set_init_script(context)
 
