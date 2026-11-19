@@ -5,142 +5,6 @@
   flex-direction: column;
   height: 100%;
 
-  // Tab管理区域
-  .tab-management {
-    background-color: var(--el-bg-color);
-    border-radius: 4px;
-    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
-    margin-bottom: 20px;
-    padding: 15px 20px;
-
-    .tab-header {
-      display: flex;
-      align-items: flex-start;
-      gap: 15px;
-
-      .tab-list {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        flex: 1;
-        min-width: 0;
-
-        .tab-item {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          padding: 6px 12px;
-          background-color: var(--el-fill-color-lighter);
-          border: 1px solid var(--el-border-color);
-          border-radius: 4px;
-          cursor: pointer;
-          transition: all 0.3s;
-          font-size: 14px;
-          height: 32px;
-
-          &:hover {
-            background-color: var(--el-color-primary-light-9);
-            border-color: var(--el-color-primary-light-7);
-          }
-
-          &.active {
-            background-color: var(--el-color-primary);
-            border-color: var(--el-color-primary);
-            color: #fff;
-
-            .close-icon {
-              color: #fff;
-
-              &:hover {
-                background-color: rgba(255, 255, 255, 0.2);
-              }
-            }
-          }
-
-          .close-icon {
-            padding: 2px;
-            border-radius: 2px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            font-size: 12px;
-
-            &:hover {
-              background-color: rgba(255, 255, 255, 0.1);
-            }
-          }
-        }
-      }
-
-      .tab-actions {
-        display: flex;
-        gap: 10px;
-        flex-shrink: 0;
-
-        .add-tab-btn,
-        .batch-publish-btn {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          height: 32px;
-          padding: 6px 12px;
-          font-size: 14px;
-          white-space: nowrap;
-        }
-      }
-    }
-  }
-
-  // 批量发布进度对话框样式
-  .publish-progress {
-    padding: 20px;
-
-    .current-publishing {
-      margin: 15px 0;
-      text-align: center;
-      color: #606266;
-    }
-
-    .publish-results {
-      margin-top: 20px;
-      border-top: 1px solid #ebeef5;
-      padding-top: 15px;
-      max-height: 300px;
-      overflow-y: auto;
-
-      .result-item {
-        display: flex;
-        align-items: center;
-        padding: 8px 0;
-        color: #606266;
-
-        .el-icon {
-          margin-right: 8px;
-        }
-
-        .label {
-          margin-right: 10px;
-          font-weight: 500;
-        }
-
-        .message {
-          color: #909399;
-        }
-
-        &.success {
-          color: #67c23a;
-        }
-
-        &.error {
-          color: #f56c6c;
-        }
-
-        &.cancelled {
-          color: #909399;
-        }
-      }
-    }
-  }
-
   .dialog-footer {
     text-align: right;
   }
@@ -163,11 +27,11 @@
     box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
     padding: 20px;
 
-    .tab-content-wrapper {
+    .panel-wrapper {
       display: flex;
       justify-content: center;
 
-      .tab-content {
+      .publish-panel {
         width: 100%;
         max-width: 800px;
 
@@ -176,6 +40,10 @@
           font-weight: 500;
           color: var(--el-text-color-primary);
           margin: 0 0 10px 0;
+        }
+
+        .publish-status {
+          margin-bottom: 20px;
         }
 
         .upload-section,
@@ -195,17 +63,57 @@
           }
         }
 
-        .account-input {
-          max-width: 400px;
+        // 名称选择与账号列表
+        .account-section {
+          .user-name-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+
+            .label {
+              margin-right: 10px;
+              color: var(--el-text-color-regular);
+            }
+
+            .user-name-select {
+              width: 300px;
+            }
+          }
+
+          .account-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 24px;
+
+            .account-checkbox {
+              margin-right: 0;
+
+              .platform-name {
+                margin-right: 8px;
+              }
+            }
+          }
+
+          .account-tip {
+            margin-top: 10px;
+            font-size: 13px;
+            color: var(--el-text-color-secondary);
+          }
         }
 
-        .platform-buttons {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
+        // 平台摘要
+        .platform-section {
+          .platform-summary {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 10px;
 
-          .platform-btn {
-            min-width: 80px;
+            .platform-hint {
+              font-size: 13px;
+              color: var(--el-text-color-secondary);
+            }
           }
         }
 

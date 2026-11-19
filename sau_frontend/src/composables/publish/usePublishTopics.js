@@ -8,67 +8,52 @@ const recommendedTopics = [
   '健康', '时尚', '美妆', '摄影', '宠物', '汽车'
 ]
 
-const createTopicState = () => ({
-  topicDialogVisible: ref(false),
-  topicTab: ref(null),
-  customTopic: ref('')
-})
+// 创建话题相关的操作
+const createTopicActions = (form, topicDialogVisible, customTopic) => {
+  const openTopicDialog = () => {
+    topicDialogVisible.value = true
+  }
 
-const createTopicActions = (state) => {
-  // 添加自定义话题
   const addCustomTopic = () => {
-    const content = state.customTopic.value.trim()
+    const content = customTopic.value.trim()
     if (!content) {
       ElMessage.warning('请输入话题内容')
       return
     }
-    if (state.topicTab.value && state.topicTab.value.selectedTopics.includes(content)) {
+    if (form.selectedTopics.includes(content)) {
       ElMessage.warning('话题已存在')
       return
     }
-    if (state.topicTab.value) {
-      state.topicTab.value.selectedTopics.push(content)
-      state.customTopic.value = ''
-      ElMessage.success('话题添加成功')
-    }
+    form.selectedTopics.push(content)
+    customTopic.value = ''
+    ElMessage.success('话题添加成功')
   }
 
-  // 切换推荐话题
   const toggleRecommendedTopic = (topic) => {
-    if (!state.topicTab.value) return
-    const topics = state.topicTab.value.selectedTopics
-    const index = topics.indexOf(topic)
+    const index = form.selectedTopics.indexOf(topic)
     if (index > -1) {
-      topics.splice(index, 1)
+      form.selectedTopics.splice(index, 1)
     } else {
-      topics.push(topic)
+      form.selectedTopics.push(topic)
     }
   }
 
-  // 删除话题
-  const removeTopic = (tab, index) => {
-    tab.selectedTopics.splice(index, 1)
+  const removeTopic = (index) => {
+    form.selectedTopics.splice(index, 1)
   }
 
-  // 确认添加话题
   const confirmTopicSelection = () => {
-    state.topicDialogVisible.value = false
-    state.customTopic.value = ''
-    state.topicTab.value = null
+    topicDialogVisible.value = false
+    customTopic.value = ''
     ElMessage.success('添加话题完成')
   }
 
-  return { addCustomTopic, toggleRecommendedTopic, removeTopic, confirmTopicSelection }
+  return { openTopicDialog, addCustomTopic, toggleRecommendedTopic, removeTopic, confirmTopicSelection }
 }
 
-export function usePublishTopics() {
-  const state = createTopicState()
-
-  // 打开添加话题弹窗
-  const openTopicDialog = (tab) => {
-    state.topicTab.value = tab
-    state.topicDialogVisible.value = true
-  }
-
-  return { recommendedTopics, ...state, openTopicDialog, ...createTopicActions(state) }
+export function usePublishTopics(form) {
+  const topicDialogVisible = ref(false)
+  const customTopic = ref('')
+  const actions = createTopicActions(form, topicDialogVisible, customTopic)
+  return { recommendedTopics, topicDialogVisible, customTopic, ...actions }
 }

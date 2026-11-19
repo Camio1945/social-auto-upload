@@ -46,6 +46,6 @@ import { usePublishContext } from '@/composables/publish/publishContext'
 const publish = usePublishContext()
 
 const isTopicSelected = (topic) => {
-  return Boolean(publish.topicTab?.selectedTopics?.includes(topic))
+  return Boolean(publish.form.selectedTopics?.includes(topic))
 }
 </script>

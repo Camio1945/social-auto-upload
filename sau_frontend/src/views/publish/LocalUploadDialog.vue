@@ -34,6 +34,6 @@ import { usePublishContext } from '@/composables/publish/publishContext'
 const publish = usePublishContext()
 
 const handleUploadSuccess = (response, file) => {
-  publish.handleUploadSuccess(response, file, publish.currentUploadTab)
+  publish.handleUploadSuccess(response, file)
 }
 </script>

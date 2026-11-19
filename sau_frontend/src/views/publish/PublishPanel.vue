@@ -1,19 +1,19 @@
 <template>
-  <div class="tab-content">
-    <div v-if="tab.publishStatus" class="publish-status">
+  <div class="publish-panel">
+    <div v-if="publish.form.publishStatus" class="publish-status">
       <el-alert
-        :title="tab.publishStatus.message"
-        :type="tab.publishStatus.type"
+        :title="publish.form.publishStatus.message"
+        :type="publish.form.publishStatus.type"
         :closable="false"
         show-icon
       />
     </div>
-    <PublishVideoSection :tab="tab" />
-    <PublishAccountSection :tab="tab" />
-    <PublishPlatformSection :tab="tab" />
-    <PublishTopicSection :tab="tab" />
-    <PublishScheduleSection :tab="tab" />
-    <PublishActions :tab="tab" />
+    <PublishVideoSection />
+    <PublishAccountSection />
+    <PublishPlatformSection />
+    <PublishTopicSection />
+    <PublishScheduleSection />
+    <PublishActions />
   </div>
 </template>
 
@@ -24,11 +24,7 @@ import PublishPlatformSection from './PublishPlatformSection.vue'
 import PublishTopicSection from './PublishTopicSection.vue'
 import PublishScheduleSection from './PublishScheduleSection.vue'
 import PublishActions from './PublishActions.vue'
+import { usePublishContext } from '@/composables/publish/publishContext'
 
-defineProps({
-  tab: {
-    type: Object,
-    required: true
-  }
-})
+const publish = usePublishContext()
 </script>

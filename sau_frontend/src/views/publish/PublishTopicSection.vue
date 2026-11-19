@@ -3,7 +3,7 @@
   <div class="title-section">
     <h3>标题</h3>
     <el-input
-      v-model="tab.title"
+      v-model="publish.form.title"
       type="textarea"
       :rows="3"
       placeholder="请输入标题"
@@ -19,21 +19,16 @@
     <div class="topic-display">
       <div class="selected-topics">
         <el-tag
-          v-for="(topic, index) in tab.selectedTopics"
+          v-for="(topic, index) in publish.form.selectedTopics"
           :key="index"
           closable
-          @close="publish.removeTopic(tab, index)"
+          @close="publish.removeTopic(index)"
           class="topic-tag"
         >
           #{{ topic }}
         </el-tag>
       </div>
-      <el-button
-        type="primary"
-        plain
-        @click="publish.openTopicDialog(tab)"
-        class="select-topic-btn"
-      >
+      <el-button type="primary" plain @click="publish.openTopicDialog" class="select-topic-btn">
         添加话题
       </el-button>
     </div>
@@ -42,13 +37,6 @@
 
 <script setup>
 import { usePublishContext } from '@/composables/publish/publishContext'
-
-defineProps({
-  tab: {
-    type: Object,
-    required: true
-  }
-})
 
 const publish = usePublishContext()
 </script>

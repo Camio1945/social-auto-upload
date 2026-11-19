@@ -1,17 +1,9 @@
 <template>
   <div class="publish-center">
-    <!-- Tab管理区域 -->
-    <PublishTabList />
-
-    <!-- 内容区域 -->
+    <!-- 内容区域：单页面发布，不再使用多 tab -->
     <div class="publish-content">
-      <div class="tab-content-wrapper">
-        <PublishTabPanel
-          v-for="tab in publish.tabs"
-          :key="tab.name"
-          v-show="publish.activeTab === tab.name"
-          :tab="tab"
-        />
+      <div class="panel-wrapper">
+        <PublishPanel />
       </div>
     </div>
 
@@ -19,28 +11,28 @@
     <UploadOptionsDialog />
     <LocalUploadDialog />
     <MaterialSelectDialog />
-    <AccountSelectDialog />
     <TopicSelectDialog />
-    <BatchPublishDialog />
   </div>
 </template>
 
 <script setup>
-import { provide } from 'vue'
-import PublishTabList from './publish/PublishTabList.vue'
-import PublishTabPanel from './publish/PublishTabPanel.vue'
+import { onMounted, provide } from 'vue'
+import PublishPanel from './publish/PublishPanel.vue'
 import UploadOptionsDialog from './publish/UploadOptionsDialog.vue'
 import LocalUploadDialog from './publish/LocalUploadDialog.vue'
 import MaterialSelectDialog from './publish/MaterialSelectDialog.vue'
-import AccountSelectDialog from './publish/AccountSelectDialog.vue'
 import TopicSelectDialog from './publish/TopicSelectDialog.vue'
-import BatchPublishDialog from './publish/BatchPublishDialog.vue'
 import { usePublishCenter } from '@/composables/publish/usePublishCenter'
 import { PUBLISH_KEY } from '@/composables/publish/publishContext'
 
 // 创建共享状态并注入给子组件
 const publish = usePublishCenter()
 provide(PUBLISH_KEY, publish)
+
+// 进入页面时加载名称与账号列表
+onMounted(() => {
+  publish.initialize()
+})
 </script>
 
 <style lang="scss" src="./publish/publish-center.scss"></style>
