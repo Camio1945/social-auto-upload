@@ -21,6 +21,16 @@ def account_exists(platform_type, user_name, exclude_id=None):
         return conn.execute(sql, params).fetchone() is not None
 
 
+def get_account_record(account_id):
+    """按 id 查询账号记录，不存在时返回 None。"""
+    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT * FROM user_info WHERE id = ?", (account_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
 def user_name_exists(user_name):
     """判断名称是否已在 user_name 表中维护。"""
     with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:

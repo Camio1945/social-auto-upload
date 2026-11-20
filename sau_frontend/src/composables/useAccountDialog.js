@@ -70,7 +70,7 @@ const finishLogin = (state, ctx) => {
     setTimeout(() => {
       state.dialogVisible.value = false
       state.sseConnecting.value = false
-      ElMessage.success(state.dialogType.value === 'edit' ? '重新登录成功' : '账号添加成功')
+      ElMessage.success(state.dialogType.value === 'add' ? '账号添加成功' : '重新登录成功')
       ElMessage({ type: 'info', message: '正在同步账号信息...', duration: 0 })
       ctx.fetchAccounts().then(() => {
         ElMessage.closeAll()
@@ -106,14 +106,15 @@ const handleSSEMessage = (state, ctx, event) => {
   }
 }
 
-const connectSSE = (state, ctx, platform, name) => {
+const connectSSE = (state, ctx, platform, name, accountId) => {
   closeSSE(state)
   state.sseConnecting.value = true
   state.qrCodeData.value = ''
   state.loginStatus.value = ''
 
   const type = platformTypeMap[platform] || 1
-  const url = `${getApiBaseUrl()}/login?type=${type}&id=${encodeURIComponent(name)}`
+  const accountParam = accountId ? `&accountId=${encodeURIComponent(accountId)}` : ''
+  const url = `${getApiBaseUrl()}/login?type=${type}&id=${encodeURIComponent(name)}${accountParam}`
   const source = new EventSource(url)
   state.eventSource.value = source
 
@@ -155,7 +156,7 @@ const handleEdit = (state, ctx, row) => {
 }
 
 const handleReLogin = (state, ctx, row) => {
-  state.dialogType.value = 'edit'
+  state.dialogType.value = 'relogin'
   Object.assign(state.accountForm, {
     id: row.id,
     name: row.name,
@@ -166,7 +167,7 @@ const handleReLogin = (state, ctx, row) => {
   state.qrCodeData.value = ''
   state.loginStatus.value = ''
   state.dialogVisible.value = true
-  setTimeout(() => connectSSE(state, ctx, row.platform, row.name), 300)
+  setTimeout(() => connectSSE(state, ctx, row.platform, row.name, row.id), 300)
 }
 
 const handleStatusClick = (state, ctx, row) => {
@@ -278,6 +279,7 @@ const handleDialogSubmit = (state, ctx) => {
     connectSSE(state, ctx, state.accountForm.platform, state.accountForm.name)
     return
   }
+  if (state.dialogType.value === 'relogin') return
   saveAccountEdit(state, ctx).catch((error) => {
     console.error('更新账号失败:', error)
     ElMessage.error('更新账号失败')
@@ -292,12 +294,22 @@ export function useAccountDialog({ nameOptions, fetchNameOptions, fetchAccounts,
 
   onBeforeUnmount(() => closeSSE(state))
 
+  // 关闭弹窗时结束登录连接并重置状态
+  watch(() => state.dialogVisible.value, (visible) => {
+    if (visible) return
+    closeSSE(state)
+    state.sseConnecting.value = false
+    state.qrCodeData.value = ''
+    state.loginStatus.value = ''
+  })
+
   return {
     ...state,
     availableNameOptions,
     nameHint,
     handleAddAccount: () => handleAddAccount(state, ctx),
     handleEdit: (row) => handleEdit(state, ctx, row),
+    handleReLogin: (row) => handleReLogin(state, ctx, row),
     handleStatusClick: (row) => handleStatusClick(state, ctx, row),
     handleDelete: (row) => handleDelete(ctx, row),
     handleDownloadCookie: (row) => handleDownloadCookie(row),

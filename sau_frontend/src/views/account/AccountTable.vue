@@ -28,8 +28,11 @@
         </el-tag>
       </template>
     </el-table-column>
-    <el-table-column label="操作" width="420">
+    <el-table-column label="操作" width="520">
       <template #default="scope">
+        <el-button size="small" type="success" @click="emit('relogin', scope.row)">
+          重新登录
+        </el-button>
         <el-button size="small" @click="emit('edit', scope.row)">编辑</el-button>
         <el-button size="small" type="primary" :icon="Download" @click="emit('download', scope.row)">
           下载Cookie
@@ -53,7 +56,7 @@ defineProps({
   }
 })
 
-const emit = defineEmits(['edit', 'download', 'upload', 'delete', 'status-click'])
+const emit = defineEmits(['relogin', 'edit', 'download', 'upload', 'delete', 'status-click'])
 
 // 获取默认头像
 const getDefaultAvatar = (name) => {

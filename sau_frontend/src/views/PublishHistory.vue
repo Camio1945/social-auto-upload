@@ -33,6 +33,20 @@
           </template>
         </el-table-column>
         <el-table-column prop="message" label="说明" min-width="180" show-overflow-tooltip />
+        <el-table-column label="操作" width="120" fixed="right">
+          <template #default="scope">
+            <el-button
+              v-if="scope.row.status === 2"
+              size="small"
+              type="primary"
+              :loading="republishingId === scope.row.id"
+              @click="retryPublish(scope.row)"
+            >
+              重新发布
+            </el-button>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
       </el-table>
 
       <div v-else class="empty-data">
@@ -44,13 +58,18 @@
 
 <script setup>
 import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { publishApi } from '@/api/publish'
+import { accountApi } from '@/api/account'
 import { getPlatformName } from '@/composables/publish/usePublishForm'
 
 // 发布记录列表（接口已按时间倒序返回）
 const logs = ref([])
 const loading = ref(false)
+
+// 正在重新发布的记录 id
+const republishingId = ref(null)
 
 // 平台标签颜色
 const platformTagTypes = { 3: 'danger', 4: 'success', 2: 'warning', 1: 'info' }
@@ -90,6 +109,56 @@ const fetchLogs = async () => {
     console.error('获取发布记录失败:', error)
   } finally {
     loading.value = false
+  }
+}
+
+// 查找记录对应的当前账号（按名称 + 平台匹配，取最新 cookie）
+const findCurrentAccount = async (row) => {
+  const res = await accountApi.getAccounts()
+  const accounts = (res.data || []).map(item => ({
+    type: item[1],
+    filePath: item[2],
+    name: item[3],
+    status: item[4]
+  }))
+  return accounts.find(item => item.name === row.userName && item.type === row.type) || null
+}
+
+// 构造单平台重发数据；话题与原创设置未记录，按空值重发
+const buildRetryPayload = (row, account) => ({
+  type: row.type,
+  title: row.title,
+  userName: row.userName,
+  tags: [],
+  fileList: row.fileList,
+  accountList: [account.filePath],
+  category: 0,
+  productLink: '',
+  productTitle: '',
+  isDraft: false
+})
+
+// 重新发布单条失败记录
+const retryPublish = async (row) => {
+  if (republishingId.value !== null) return
+  republishingId.value = row.id
+  try {
+    const account = await findCurrentAccount(row)
+    if (!account) {
+      ElMessage.error('未找到该名称在对应平台的账号，请先在账号管理中添加')
+      return
+    }
+    if (account.status !== 1) {
+      ElMessage.error('该账号状态异常，请先在账号管理中重新登录')
+      return
+    }
+    await publishApi.retryPublish(buildRetryPayload(row, account))
+    ElMessage.success('已重新提交发布，完成后请刷新查看结果')
+    await fetchLogs()
+  } catch (error) {
+    console.error('重新发布失败:', error)
+  } finally {
+    republishingId.value = null
   }
 }
 

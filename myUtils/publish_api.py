@@ -1,6 +1,5 @@
 """发布与登录接口：扫码登录、视频发布、Cookie 上传下载。"""
 import asyncio
-import json
 import sqlite3
 import threading
 import time
@@ -10,88 +9,21 @@ from queue import Queue
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from conf import BASE_DIR
-from myUtils.account_api import account_exists, user_name_exists
+from myUtils.account_api import account_exists, get_account_record, user_name_exists
 from myUtils.login import get_tencent_cookie, douyin_cookie_gen, get_ks_cookie, xiaohongshu_cookie_gen
 from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks, post_video_xhs
+from myUtils.publish_log import (
+    PUBLISH_LOG_FAILED,
+    PUBLISH_LOG_SUCCESS,
+    build_publish_args,
+    deserialize_publish_log,
+    finish_publish_log,
+    log_publish_start,
+)
 
 publish_bp = Blueprint("publish", __name__)
 
 active_queues = {}
-
-# 发布记录状态
-PUBLISH_LOG_PENDING = 0
-PUBLISH_LOG_SUCCESS = 1
-PUBLISH_LOG_FAILED = 2
-
-
-def build_publish_args(data):
-    """把前端发布数据解析为统一的参数字典。"""
-    category = data.get('category')
-    if category == 0:
-        category = None
-    return {
-        'file_list': data.get('fileList', []),
-        'account_list': data.get('accountList', []),
-        'type': data.get('type'),
-        'title': data.get('title'),
-        'user_name': (data.get('userName') or '').strip(),
-        'tags': data.get('tags'),
-        'category': category,
-        'product_link': data.get('productLink', ''),
-        'product_title': data.get('productTitle', ''),
-        'thumbnail': data.get('thumbnail', ''),
-        'is_draft': data.get('isDraft', False),
-    }
-
-
-def create_publish_log(args):
-    """发布前写入一条"发布中"记录，返回记录 id。"""
-    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-        cursor = conn.execute('''
-            INSERT INTO publish_log (userName, type, title, fileList, accountList, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (
-            args['user_name'], args['type'], args['title'],
-            json.dumps(args['file_list'], ensure_ascii=False),
-            json.dumps(args['account_list'], ensure_ascii=False),
-            PUBLISH_LOG_PENDING
-        ))
-        conn.commit()
-        return cursor.lastrowid
-
-
-def finish_publish_log(log_id, status, message=None):
-    """发布结束后更新记录状态；更新失败不影响发布结果。"""
-    if log_id is None:
-        return
-    try:
-        with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-            conn.execute(
-                'UPDATE publish_log SET status = ?, message = ? WHERE id = ?',
-                (status, message, log_id)
-            )
-            conn.commit()
-    except Exception as e:
-        print(f"更新发布记录失败: {e}")
-
-
-def log_publish_start(args):
-    """写入发布中记录；写入失败时返回 None，不阻断发布。"""
-    try:
-        return create_publish_log(args)
-    except Exception as e:
-        print(f"写入发布记录失败: {e}")
-        return None
-
-
-def deserialize_publish_log(item):
-    """把数据库中的 JSON 字段还原为列表；损坏数据按空列表处理。"""
-    for field in ('fileList', 'accountList'):
-        try:
-            item[field] = json.loads(item[field]) if item[field] else []
-        except (TypeError, ValueError):
-            item[field] = []
-    return item
 
 
 def dispatch_publish(args):
@@ -138,51 +70,70 @@ def find_cookie_path(account_id):
     return result['filePath'] if result else None
 
 
-# SSE 登录接口
-@publish_bp.route('/login')
-def login():
+def parse_login_request():
+    """解析登录参数，返回 (平台类型, 账号名, 账号ID, 错误响应或 None)。"""
     # 1 小红书 2 视频号 3 抖音 4 快手
-    type = request.args.get('type')
-    # 账号名
-    id = (request.args.get('id') or '').strip()
-
-    # 同一名称在同一平台只能有一个账号
     try:
-        platform_type = int(type)
+        platform_type = int(request.args.get('type'))
     except (TypeError, ValueError):
-        return jsonify({"code": 400, "msg": "平台类型无效", "data": None}), 400
+        return None, None, None, (
+            jsonify({"code": 400, "msg": "平台类型无效", "data": None}), 400)
 
-    if not id:
-        return jsonify({"code": 400, "msg": "账号名称不能为空", "data": None}), 400
+    # 账号名
+    user_name = (request.args.get('id') or '').strip()
+    if not user_name:
+        return platform_type, None, None, (
+            jsonify({"code": 400, "msg": "账号名称不能为空", "data": None}), 400)
 
     # 名称必须先存在于 user_name 中
-    if not user_name_exists(id):
-        return jsonify({"code": 400, "msg": "名称不存在，请先在名称管理中添加", "data": None}), 400
+    if not user_name_exists(user_name):
+        return platform_type, user_name, None, (
+            jsonify({"code": 400, "msg": "名称不存在，请先在名称管理中添加", "data": None}), 400)
 
-    if account_exists(platform_type, id):
-        return jsonify({
-            "code": 409,
-            "msg": "该名称已在此平台添加过账号",
-            "data": None
-        }), 409
+    account_id = request.args.get('accountId', type=int)
+    if account_id is not None:
+        # 重新登录：账号必须存在，且不新增记录
+        if not get_account_record(account_id):
+            return platform_type, user_name, None, (
+                jsonify({"code": 404, "msg": "账号不存在", "data": None}), 404)
+        return platform_type, user_name, account_id, None
 
-    # 模拟一个用于异步通信的队列
-    status_queue = Queue()
-    active_queues[id] = status_queue
+    # 新增账号：同一名称在同一平台只能有一个账号
+    if account_exists(platform_type, user_name):
+        return platform_type, user_name, None, (
+            jsonify({"code": 409, "msg": "该名称已在此平台添加过账号", "data": None}), 409)
+    return platform_type, user_name, None, None
 
-    def on_close():
-        print(f"清理队列: {id}")
-        del active_queues[id]
 
-    # 启动异步任务线程
-    thread = threading.Thread(target=run_async_function, args=(type, id, status_queue), daemon=True)
-    thread.start()
-    response = Response(sse_stream(status_queue,), mimetype='text/event-stream')
+def build_sse_response(status_queue):
+    """构造 SSE 响应头。"""
+    response = Response(sse_stream(status_queue), mimetype='text/event-stream')
     response.headers['Cache-Control'] = 'no-cache'
     response.headers['X-Accel-Buffering'] = 'no'  # 关键：禁用 Nginx 缓冲
     response.headers['Content-Type'] = 'text/event-stream'
     response.headers['Connection'] = 'keep-alive'
     return response
+
+
+# SSE 登录接口（accountId 存在时为重新登录）
+@publish_bp.route('/login')
+def login():
+    platform_type, user_name, account_id, error = parse_login_request()
+    if error:
+        return error
+
+    # 模拟一个用于异步通信的队列
+    status_queue = Queue()
+    active_queues[user_name] = status_queue
+
+    # 启动异步任务线程
+    thread = threading.Thread(
+        target=run_async_function,
+        args=(str(platform_type), user_name, status_queue, account_id),
+        daemon=True
+    )
+    thread.start()
+    return build_sse_response(status_queue)
 
 
 @publish_bp.route('/postVideo', methods=['POST'])
@@ -368,29 +319,27 @@ def download_cookie():
         }), 500
 
 
+# 平台类型与登录函数的对应关系
+LOGIN_HANDLERS = {
+    '1': xiaohongshu_cookie_gen,
+    '2': get_tencent_cookie,
+    '3': douyin_cookie_gen,
+    '4': get_ks_cookie,
+}
+
+
 # 包装函数：在线程中运行异步函数
-def run_async_function(type, id, status_queue):
-    match type:
-        case '1':
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(xiaohongshu_cookie_gen(id, status_queue))
-            loop.close()
-        case '2':
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(get_tencent_cookie(id, status_queue))
-            loop.close()
-        case '3':
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(douyin_cookie_gen(id, status_queue))
-            loop.close()
-        case '4':
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            loop.run_until_complete(get_ks_cookie(id, status_queue))
-            loop.close()
+def run_async_function(type, id, status_queue, account_id=None):
+    handler = LOGIN_HANDLERS.get(type)
+    if not handler:
+        status_queue.put("500")
+        return
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        loop.run_until_complete(handler(id, status_queue, account_id))
+    finally:
+        loop.close()
 
 
 # SSE 流生成器函数
