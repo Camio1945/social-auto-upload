@@ -190,3 +190,6 @@ videoFile
 docs/git_ignores/
 
 /uploader/bilibili_uploader/qrcode.png
+
+# autostart helper: generated locally with absolute machine paths
+scripts/paths.json
