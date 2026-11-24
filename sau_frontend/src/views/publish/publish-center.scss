@@ -64,6 +64,17 @@
 
         // 名称选择与账号列表
         .account-section {
+          .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+
+            h3 {
+              margin: 0;
+            }
+          }
+
           .user-name-row {
             display: flex;
             flex-wrap: wrap;

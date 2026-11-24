@@ -17,6 +17,16 @@
         </div>
       </div>
 
+      <el-alert
+        v-if="abnormalAccounts.length"
+        class="status-alert"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="存在 Cookie 失效的账号"
+        :description="abnormalDescription"
+      />
+
       <el-tabs v-model="activeTab" class="account-tabs-nav">
         <el-tab-pane
           v-for="tab in platformTabs"
@@ -123,6 +133,25 @@ const visibleAccounts = computed(() => {
     return !keyword || account.name.includes(keyword)
   })
 })
+
+// 失效账号（按 平台+名称 去重），用于顶部提示
+const abnormalAccounts = computed(() => {
+  const seen = new Set()
+  return accountStore.accounts
+    .filter(account => account.status === '异常')
+    .filter(account => {
+      const key = `${account.platform}/${account.name}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+})
+
+// 失效账号提示文案
+const abnormalDescription = computed(() => {
+  const names = abnormalAccounts.value.map(account => `${account.platform} / ${account.name}`)
+  return `请对以下账号点击“重新登录”完成扫码：${names.join('、')}`
+})
 </script>
 
 <style lang="scss" scoped>
@@ -162,6 +191,10 @@ const visibleAccounts = computed(() => {
         animation: rotate 1s linear infinite;
       }
     }
+  }
+
+  .status-alert {
+    margin-bottom: 12px;
   }
 
   .account-list-container {

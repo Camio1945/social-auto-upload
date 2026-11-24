@@ -1,5 +1,6 @@
 """账号接口：账号列表、状态校验、删除与编辑。"""
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, jsonify, request
@@ -8,6 +9,78 @@ from conf import BASE_DIR
 from myUtils.auth import check_cookie
 
 account_bp = Blueprint("account", __name__)
+
+DB_PATH = Path(BASE_DIR / "db" / "database.db")
+LAST_CHECKED_COLUMN = "lastCheckedAt"
+
+
+def _connect():
+    return sqlite3.connect(DB_PATH, timeout=30)
+
+
+def ensure_last_checked_column():
+    """为老库补上 lastCheckedAt 字段（幂等），用于展示「上次校验时间」。"""
+    with _connect() as conn:
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(user_info)")]
+        if columns and LAST_CHECKED_COLUMN not in columns:
+            conn.execute(f"ALTER TABLE user_info ADD COLUMN {LAST_CHECKED_COLUMN} TEXT")
+            conn.commit()
+            print("✅ user_info 已添加 lastCheckedAt 字段")
+
+
+def _now_str():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _fetch_account_rows():
+    with _connect() as conn:
+        return [list(row) for row in conn.execute("SELECT * FROM user_info").fetchall()]
+
+
+def _write_status(account_id, valid, checked_at):
+    """状态写回是双向的：有效写 1、失效写 0，避免「异常」变成无法恢复的粘性状态。"""
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE user_info SET status = ?, lastCheckedAt = ? WHERE id = ?",
+            (1 if valid else 0, checked_at, account_id),
+        )
+        conn.commit()
+
+
+def mark_account_valid(user_name, platform_type):
+    """发布成功后把对应账号标记为正常并刷新校验时间（失败不影响发布结果）。"""
+    if not user_name or not platform_type:
+        return
+    try:
+        ensure_last_checked_column()
+        with _connect() as conn:
+            conn.execute(
+                "UPDATE user_info SET status = 1, lastCheckedAt = ? "
+                "WHERE userName = ? AND type = ?",
+                (_now_str(), user_name, platform_type),
+            )
+            conn.commit()
+    except Exception as exc:
+        print(f"⚠️ 更新账号状态失败: {exc}")
+
+
+async def _verify_row(row):
+    """校验单行并回写状态；校验过程抛错时保留原状态，不误报异常。"""
+    platform_type, file_path = row[1], row[2]
+    try:
+        valid = await check_cookie(platform_type, file_path)
+    except Exception as exc:
+        print(f"⚠️ 校验账号 {row[3]}（type={platform_type}）时出错: {exc}")
+        return row
+
+    checked_at = _now_str()
+    _write_status(row[0], valid, checked_at)
+    row[4] = 1 if valid else 0
+    if len(row) > 5:
+        row[5] = checked_at
+    print(f"{'✅' if valid else '❌'} {row[3]}（type={platform_type}）Cookie {'有效' if valid else '失效'}")
+    return row
+
 
 
 def account_exists(platform_type, user_name, exclude_id=None):
@@ -69,23 +142,16 @@ def remove_cookie_file(record):
 def getAccounts():
     """快速获取所有账号信息，不进行cookie验证"""
     try:
-        with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
-            cursor.execute('''
-            SELECT * FROM user_info''')
-            rows = cursor.fetchall()
-            rows_list = [list(row) for row in rows]
-
-            print("\n📋 当前数据表内容（快速获取）：")
-            for row in rows:
-                print(row)
-
-            return jsonify({
-                "code": 200,
-                "msg": None,
-                "data": rows_list
-            }), 200
+        ensure_last_checked_column()
+        rows_list = _fetch_account_rows()
+        print("\n📋 当前数据表内容（快速获取）：")
+        for row in rows_list:
+            print(row)
+        return jsonify({
+            "code": 200,
+            "msg": None,
+            "data": rows_list
+        }), 200
     except Exception as e:
         print(f"获取账号列表时出错: {str(e)}")
         return jsonify({
@@ -97,33 +163,24 @@ def getAccounts():
 
 @account_bp.route("/getValidAccounts", methods=['GET'])
 async def getValidAccounts():
-    with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-        SELECT * FROM user_info''')
-        rows = cursor.fetchall()
-        rows_list = [list(row) for row in rows]
-        print("\n📋 当前数据表内容：")
+    """逐个校验 Cookie，并把结果（正常/异常 + 上次校验时间）写回数据库。"""
+    try:
+        ensure_last_checked_column()
+        rows = _fetch_account_rows()
         for row in rows:
-            print(row)
-        for row in rows_list:
-            flag = await check_cookie(row[1], row[2])
-            if not flag:
-                row[4] = 0
-                cursor.execute('''
-                UPDATE user_info 
-                SET status = ? 
-                WHERE id = ?
-                ''', (0, row[0]))
-                conn.commit()
-                print("✅ 用户状态已更新")
-        for row in rows:
-            print(row)
+            await _verify_row(row)
         return jsonify({
             "code": 200,
             "msg": None,
-            "data": rows_list
+            "data": rows
         }), 200
+    except Exception as e:
+        print(f"校验账号状态时出错: {str(e)}")
+        return jsonify({
+            "code": 500,
+            "msg": f"校验账号状态失败: {str(e)}",
+            "data": None
+        }), 500
 
 
 @account_bp.route('/deleteAccount', methods=['GET'])

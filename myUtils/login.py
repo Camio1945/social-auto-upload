@@ -93,8 +93,11 @@ async def _save_cookie(context, platform_type):
 
 def _persist_account(platform_type, user_name, cookie_name, account_id=None):
     """写入账号记录：传 account_id 时更新该账号，否则新增记录。"""
+    from myUtils.account_api import ensure_last_checked_column
+
     db_path = Path(BASE_DIR / "db" / "database.db")
     old_cookie = None
+    ensure_last_checked_column()
     with sqlite3.connect(db_path) as conn:
         if account_id:
             row = conn.execute(
@@ -102,13 +105,14 @@ def _persist_account(platform_type, user_name, cookie_name, account_id=None):
             ).fetchone()
             old_cookie = row[0] if row else None
             conn.execute(
-                'UPDATE user_info SET filePath = ?, status = 1 WHERE id = ?',
+                "UPDATE user_info SET filePath = ?, status = 1, "
+                "lastCheckedAt = datetime('now', 'localtime') WHERE id = ?",
                 (cookie_name, account_id)
             )
         else:
             conn.execute(
-                'INSERT INTO user_info (type, filePath, userName, status) '
-                'VALUES (?, ?, ?, 1)',
+                "INSERT INTO user_info (type, filePath, userName, status, lastCheckedAt) "
+                "VALUES (?, ?, ?, 1, datetime('now', 'localtime'))",
                 (platform_type, cookie_name, user_name)
             )
         conn.commit()

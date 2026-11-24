@@ -28,6 +28,11 @@
         </el-tag>
       </template>
     </el-table-column>
+    <el-table-column label="上次校验" width="170">
+      <template #default="scope">
+        <span class="last-checked">{{ scope.row.lastCheckedAt || '—' }}</span>
+      </template>
+    </el-table-column>
     <el-table-column label="操作" width="520">
       <template #default="scope">
         <el-button size="small" type="success" @click="emit('relogin', scope.row)">
@@ -91,6 +96,11 @@ const getStatusTagType = (status) => {
 </script>
 
 <style lang="scss" scoped>
+.last-checked {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .clickable-status {
   cursor: pointer;
   transition: all 0.3s;

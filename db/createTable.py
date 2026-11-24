@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS user_info (
     filePath TEXT NOT NULL,
     userName TEXT NOT NULL,
     status INTEGER DEFAULT 0,
+    lastCheckedAt TEXT,
     FOREIGN KEY (userName) REFERENCES user_name (userName)
         ON UPDATE CASCADE ON DELETE RESTRICT
 )
@@ -33,6 +34,7 @@ CREATE TABLE user_info_new (
     filePath TEXT NOT NULL,
     userName TEXT NOT NULL,
     status INTEGER DEFAULT 0,
+    lastCheckedAt TEXT,
     FOREIGN KEY (userName) REFERENCES user_name (userName)
         ON UPDATE CASCADE ON DELETE RESTRICT
 )
@@ -125,6 +127,35 @@ def ensure_user_info_unique_index(cursor):
         print("⚠️ 存在同一名称同一平台的重复账号，未能创建唯一索引，请先清理重复数据")
 
 
+def ensure_last_checked_column(cursor):
+    """为旧库补上 lastCheckedAt 字段（幂等）。"""
+    cursor.execute("PRAGMA table_info(user_info)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if columns and "lastCheckedAt" not in columns:
+        cursor.execute("ALTER TABLE user_info ADD COLUMN lastCheckedAt TEXT")
+        print("✅ user_info 已添加 lastCheckedAt 字段")
+
+
+def rebuild_user_info(cursor):
+    """重建 user_info 并保留原有数据，为其添加指向 user_name 的外键。"""
+    cursor.execute("DROP TABLE IF EXISTS user_info_new")
+    cursor.execute(CREATE_USER_INFO_NEW_SQL)
+    columns = "id, type, filePath, userName, status"
+    if _has_last_checked_column(cursor):
+        columns += ", lastCheckedAt"
+    cursor.execute(f'''
+        INSERT INTO user_info_new ({columns})
+        SELECT {columns} FROM user_info
+    ''')
+    cursor.execute("DROP TABLE user_info")
+    cursor.execute("ALTER TABLE user_info_new RENAME TO user_info")
+
+
+def _has_last_checked_column(cursor):
+    cursor.execute("PRAGMA table_info(user_info)")
+    return "lastCheckedAt" in [row[1] for row in cursor.fetchall()]
+
+
 def main():
     conn = sqlite3.connect(db_file)
     cursor = conn.cursor()
@@ -132,6 +163,7 @@ def main():
     cursor.execute(CREATE_USER_NAME_SQL)
     ensure_user_info(cursor)
     ensure_user_info_unique_index(cursor)
+    ensure_last_checked_column(cursor)
     cursor.execute(CREATE_FILE_RECORDS_SQL)
     cursor.execute(CREATE_PUBLISH_LOG_SQL)
 

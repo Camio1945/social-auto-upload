@@ -7,6 +7,8 @@ import { useAppStore } from '@/stores/app'
 
 // 上次自动校验账号状态的日期（本地存储，按天去重）
 const LAST_CHECK_DATE_KEY = 'lastAccountCheckDate'
+// 校验结果的新鲜度阈值：超过该时长，打开页面时重新校验
+const STALE_MS = 6 * 60 * 60 * 1000
 
 // 获取本地日期字符串（YYYY-MM-DD）
 const getTodayDate = () => {
@@ -24,6 +26,22 @@ const shouldAutoCheckToday = () => {
 // 记录今天已完成校验
 const markCheckedToday = () => {
   localStorage.setItem(LAST_CHECK_DATE_KEY, getTodayDate())
+}
+
+// 解析后端返回的 lastCheckedAt（YYYY-MM-DD HH:mm:ss）
+const parseCheckedAt = (value) => {
+  if (!value) return null
+  const time = new Date(String(value).replace(' ', 'T')).getTime()
+  return Number.isNaN(time) ? null : time
+}
+
+// 只要有一条记录从未校验或已过期，就需要重新校验
+const isCheckStale = (accounts) => {
+  const now = Date.now()
+  return accounts.some((account) => {
+    const checkedAt = parseCheckedAt(account[5])
+    return checkedAt === null || now - checkedAt > STALE_MS
+  })
 }
 
 // 创建名称列表状态
@@ -44,28 +62,33 @@ const createNameOptions = () => {
   return { nameOptions, fetchNameOptions }
 }
 
-// 获取账号数据（快速，不验证）
-// showPending 为 true 时把状态显示为"验证中"（即将在后台校验）
-const fetchAccountsQuick = async (accountStore, showPending) => {
+// 获取账号数据（快速，不验证），返回后端原始行数据
+const fetchAccountsQuick = async (accountStore) => {
   try {
     const res = await accountApi.getAccounts()
     if (res.code === 200 && res.data) {
-      const accounts = res.data.map(account => {
-        const updatedAccount = [...account]
-        if (showPending) {
-          updatedAccount[4] = -1 // -1 表示验证中的临时状态
-        }
-        return updatedAccount
-      })
-      accountStore.setAccounts(accounts)
+      accountStore.setAccounts(res.data)
+      return res.data
     }
   } catch (error) {
     console.error('快速获取账号数据失败:', error)
   }
+  return []
 }
 
-// 获取账号数据（带验证）
-const fetchValidAccounts = async (accountStore, appStore) => {
+// 把账号状态临时标记为「验证中」
+const markAccountsPending = (accountStore, accounts) => {
+  if (!accounts.length) return
+  const pending = accounts.map((account) => {
+    const copy = [...account]
+    copy[4] = -1
+    return copy
+  })
+  accountStore.setAccounts(pending)
+}
+
+// 获取账号数据（带验证）；silent 为 true 时不弹成功提示
+const fetchValidAccounts = async (accountStore, appStore, silent = false) => {
   if (appStore.isAccountRefreshing) return
   appStore.setAccountRefreshing(true)
 
@@ -74,31 +97,18 @@ const fetchValidAccounts = async (accountStore, appStore) => {
     if (res.code === 200 && res.data) {
       accountStore.setAccounts(res.data)
       markCheckedToday()
-      ElMessage.success('账号数据获取成功')
+      if (!silent) ElMessage.success('账号数据获取成功')
       if (appStore.isFirstTimeAccountManagement) {
         appStore.setAccountManagementVisited()
       }
-    } else {
+    } else if (!silent) {
       ElMessage.error('获取账号数据失败')
     }
   } catch (error) {
     console.error('获取账号数据失败:', error)
-    ElMessage.error('获取账号数据失败')
+    if (!silent) ElMessage.error('获取账号数据失败')
   } finally {
     appStore.setAccountRefreshing(false)
-  }
-}
-
-// 后台验证所有账号（避免阻塞UI）
-const validateAccountsInBackground = async (accountStore) => {
-  try {
-    const res = await accountApi.getValidAccounts()
-    if (res.code === 200 && res.data) {
-      accountStore.setAccounts(res.data)
-      markCheckedToday()
-    }
-  } catch (error) {
-    console.error('后台验证账号失败:', error)
   }
 }
 
@@ -109,19 +119,15 @@ export function useAccountStatus() {
 
   const fetchAccounts = () => fetchValidAccounts(accountStore, appStore)
 
-  onMounted(() => {
-    // 加载可选名称
+  onMounted(async () => {
     fetchNameOptions()
 
-    // 每天只自动校验一次账号状态，其余时间直接展示上次的校验结果
-    const autoCheckNeeded = shouldAutoCheckToday()
-    fetchAccountsQuick(accountStore, autoCheckNeeded)
+    // 先展示上次的校验结果，再按需在后台重新校验
+    const accounts = await fetchAccountsQuick(accountStore)
+    if (!shouldAutoCheckToday() && !isCheckStale(accounts)) return
 
-    if (autoCheckNeeded) {
-      setTimeout(() => {
-        validateAccountsInBackground(accountStore)
-      }, 100)
-    }
+    markAccountsPending(accountStore, accounts)
+    await fetchValidAccounts(accountStore, appStore, true)
   })
 
   return { accountStore, appStore, nameOptions, fetchNameOptions, fetchAccounts }

@@ -1,6 +1,17 @@
 <template>
   <div class="account-section">
-    <h3>账号</h3>
+    <div class="section-header">
+      <h3>账号</h3>
+      <el-button
+        v-if="publish.userAccounts.length > 0"
+        link
+        type="primary"
+        size="small"
+        @click="toggleAllAccounts"
+      >
+        {{ allSelected ? '取消全选' : '全选' }}
+      </el-button>
+    </div>
 
     <!-- 选择名称 -->
     <div class="user-name-row">
@@ -47,9 +58,23 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { usePublishContext } from '@/composables/publish/publishContext'
 
 const publish = usePublishContext()
+
+// 该名称下的账号是否已全部选中
+const allSelected = computed(() =>
+  publish.userAccounts.length > 0 &&
+  publish.userAccounts.every(account => publish.form.accountIds.includes(account.id))
+)
+
+// 一键全选 / 取消全选（每个账号对应一个平台）
+const toggleAllAccounts = () => {
+  publish.form.accountIds = allSelected.value
+    ? []
+    : publish.userAccounts.map(account => account.id)
+}
 
 // 状态标签颜色
 const getStatusType = (status) => {

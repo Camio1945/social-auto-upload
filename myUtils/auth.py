@@ -1,123 +1,47 @@
-import asyncio
-import configparser
-import os
+"""Cookie 有效性校验：统一复用各平台 uploader 中维护的 cookie_auth 实现。
 
-from playwright.async_api import async_playwright
-from xhs import XhsClient
-
-from conf import BASE_DIR, LOCAL_CHROME_HEADLESS, get_browser_options
-from utils.base_social_media import set_init_script
-from utils.log import tencent_logger, kuaishou_logger, douyin_logger
+历史上这里维护着一份独立的校验逻辑（旧版选择器、明文 Playwright、有头浏览器），
+与真正用于发布的 uploader 实现逐渐分叉，导致账号状态页出现难以解释的「异常」。现在只做分发。
+"""
 from pathlib import Path
-from uploader.xhs_uploader.main import sign_local
+
+from conf import BASE_DIR
 
 
-async def cookie_auth_douyin(account_file):
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(**get_browser_options())
-        context = await browser.new_context(storage_state=account_file, no_viewport=True)
-        context = await set_init_script(context)
-        # 创建一个新的页面
-        page = await context.new_page()
-        # 访问指定的 URL
-        await page.goto("https://creator.douyin.com/creator-micro/content/upload")
-        try:
-            await page.wait_for_url("https://creator.douyin.com/creator-micro/content/upload", timeout=5000)
-            # 2024.06.17 抖音创作者中心改版
-            # 判断
-            # 等待“扫码登录”元素出现，超时 5 秒（如果 5 秒没出现，说明 cookie 有效）
-            try:
-                await page.get_by_text("扫码登录").wait_for(timeout=5000)
-                douyin_logger.error("[+] cookie 失效，需要扫码登录")
-                return False
-            except:
-                douyin_logger.success("[+]  cookie 有效")
-                return True
-        except:
-            douyin_logger.error("[+] 等待5秒 cookie 失效")
-            await context.close()
-            await browser.close()
-            return False
+def _load_checkers():
+    """延迟导入，避免后端启动时就加载 patchright 和全部平台模块。"""
+    from uploader.douyin_uploader.main import cookie_auth as douyin_auth
+    from uploader.ks_uploader.main import cookie_auth as ks_auth
+    from uploader.tencent_uploader.main import cookie_auth as tencent_auth
+    from uploader.xiaohongshu_uploader.main import cookie_auth as xhs_auth
+
+    # 平台类型：1 小红书 2 视频号 3 抖音 4 快手
+    return {1: xhs_auth, 2: tencent_auth, 3: douyin_auth, 4: ks_auth}
 
 
-async def cookie_auth_tencent(account_file):
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(**get_browser_options())
-        context = await browser.new_context(storage_state=account_file, no_viewport=True)
-        context = await set_init_script(context)
-        # 创建一个新的页面
-        page = await context.new_page()
-        # 访问指定的 URL
-        await page.goto("https://channels.weixin.qq.com/platform/post/create")
-        try:
-            await page.wait_for_selector('div.title-name:has-text("微信小店")', timeout=5000)  # 等待5秒
-            tencent_logger.error("[+] 等待5秒 cookie 失效")
-            return False
-        except:
-            tencent_logger.success("[+] cookie 有效")
-            return True
+def resolve_cookie_path(file_path) -> Path:
+    """file_path 可能是绝对路径，也可能是 cookiesFile 目录下的文件名。"""
+    path = Path(file_path)
+    if path.is_absolute():
+        return path
+    return Path(BASE_DIR) / "cookiesFile" / path
 
 
-async def cookie_auth_ks(account_file):
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(**get_browser_options())
-        context = await browser.new_context(storage_state=account_file, no_viewport=True)
-        context = await set_init_script(context)
-        # 创建一个新的页面
-        page = await context.new_page()
-        # 访问指定的 URL
-        await page.goto("https://cp.kuaishou.com/article/publish/video")
-        try:
-            await page.wait_for_selector("div.names div.container div.name:text('机构服务')", timeout=5000)  # 等待5秒
+async def check_cookie(platform_type, file_path):
+    """返回 Cookie 是否仍然有效；平台不支持、文件缺失或校验异常时返回 False。"""
+    try:
+        checker = _load_checkers().get(int(platform_type))
+    except (TypeError, ValueError):
+        return False
+    if checker is None:
+        return False
 
-            kuaishou_logger.info("[+] 等待5秒 cookie 失效")
-            return False
-        except:
-            kuaishou_logger.success("[+] cookie 有效")
-            return True
+    cookie_path = resolve_cookie_path(file_path)
+    if not cookie_path.exists():
+        return False
 
-
-async def cookie_auth_xhs(account_file):
-    async with async_playwright() as playwright:
-        browser = await playwright.chromium.launch(**get_browser_options())
-        context = await browser.new_context(storage_state=account_file, no_viewport=True)
-        context = await set_init_script(context)
-        # 创建一个新的页面
-        page = await context.new_page()
-        # 访问指定的 URL
-        await page.goto("https://creator.xiaohongshu.com/creator-micro/content/upload")
-        try:
-            await page.wait_for_url("https://creator.xiaohongshu.com/creator-micro/content/upload", timeout=5000)
-        except:
-            print("[+] 等待5秒 cookie 失效")
-            await context.close()
-            await browser.close()
-            return False
-        # 2024.06.17 抖音创作者中心改版
-        if await page.get_by_text('手机号登录').count() or await page.get_by_text('扫码登录').count():
-            print("[+] 等待5秒 cookie 失效")
-            return False
-        else:
-            print("[+] cookie 有效")
-            return True
-
-
-async def check_cookie(type, file_path):
-    match type:
-        # 小红书
-        case 1:
-            return await cookie_auth_xhs(Path(BASE_DIR / "cookiesFile" / file_path))
-        # 视频号
-        case 2:
-            return await cookie_auth_tencent(Path(BASE_DIR / "cookiesFile" / file_path))
-        # 抖音
-        case 3:
-            return await cookie_auth_douyin(Path(BASE_DIR / "cookiesFile" / file_path))
-        # 快手
-        case 4:
-            return await cookie_auth_ks(Path(BASE_DIR / "cookiesFile" / file_path))
-        case _:
-            return False
-
-# a = asyncio.run(check_cookie(1,"3a6cfdc0-3d51-11f0-8507-44e51723d63c.json"))
-# print(a)
+    try:
+        return bool(await checker(str(cookie_path)))
+    except Exception as exc:
+        print(f"⚠️ Cookie 校验出错（type={platform_type}, file={cookie_path.name}）: {exc}")
+        return False

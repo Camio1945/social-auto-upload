@@ -99,6 +99,30 @@
 - [安装说明](./docs/install.md)
 - [更新说明](./docs/update.md)
 
+### 本机自启与重启服务（可选）
+
+如果希望后端（`sau_backend.py`，:5409）和前端（Vite，:5173）在每次登录 Windows 后自动启动：
+
+```bat
+scripts\install-autostart.bat
+```
+
+安装脚本会在当前用户的「启动」文件夹创建 `Social Auto Upload.lnk`，通过 `pythonw.exe scripts\launcher.pyw` 静默拉起两个服务：**登录时触发（不是开机时），无需管理员权限，也不会弹出控制台窗口**。
+
+日常重启服务（请使用 `python.exe` 而不是 `pythonw.exe`，否则看不到输出）：
+
+```powershell
+.venv\Scripts\python.exe scripts\launcher.pyw stop
+.venv\Scripts\python.exe scripts\launcher.pyw start
+.venv\Scripts\python.exe scripts\launcher.pyw status
+```
+
+- `start` 按端口幂等：已在运行的服务会直接跳过，不会重复启动
+- 修改后端代码后必须重启后端才生效；正在发布时不要重启，会中断上传
+- 日志：`logs\backend.log`、`logs\frontend.log`、`logs\launcher.log`
+- 卸载自启：`scripts\uninstall-autostart.bat`
+- 更详细说明见 [scripts/README.md](./scripts/README.md)
+
 
 ### AGENT 
 

@@ -9,7 +9,12 @@ from queue import Queue
 from flask import Blueprint, Response, jsonify, request, send_from_directory
 
 from conf import BASE_DIR
-from myUtils.account_api import account_exists, get_account_record, user_name_exists
+from myUtils.account_api import (
+    account_exists,
+    get_account_record,
+    mark_account_valid,
+    user_name_exists,
+)
 from myUtils.login import get_tencent_cookie, douyin_cookie_gen, get_ks_cookie, xiaohongshu_cookie_gen
 from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks, post_video_xhs
 from myUtils.publish_log import (
@@ -168,6 +173,7 @@ def postVideo():
                 "data": None
             }), 400
         finish_publish_log(log_id, PUBLISH_LOG_SUCCESS)
+        mark_account_valid(args['user_name'], args['type'])
         return jsonify({
             "code": 200,
             "msg": "发布任务已提交",
@@ -200,6 +206,7 @@ def postVideoBatch():
                 finish_publish_log(log_id, PUBLISH_LOG_FAILED, f"不支持的平台类型: {args['type']}")
                 continue
             finish_publish_log(log_id, PUBLISH_LOG_SUCCESS)
+            mark_account_valid(args['user_name'], args['type'])
         except Exception as e:
             print(f"批量发布时出错: {e}")
             finish_publish_log(log_id, PUBLISH_LOG_FAILED, str(e))
