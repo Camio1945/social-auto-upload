@@ -8,32 +8,14 @@ from flask import Blueprint, jsonify, request
 
 from conf import BASE_DIR
 from db.createTable import ensure_comment_tables
+from myUtils.comment_platforms import DOUYIN_TYPE, PLATFORMS
 from myUtils.comment_query import build_comment_query, load_comment_rows
 from myUtils.comment_store import mark_handled, mark_liked, now_str, save_result
-from myUtils.douyin_comment import (
-    MAX_COMMENT_PAGES,
-    CommentNotFoundError,
-    fetch_douyin_comments,
-    like_douyin_comment,
-    reply_douyin_comment,
-)
-from myUtils.kuaishou_comment import (
-    fetch_kuaishou_comments,
-    like_kuaishou_comment,
-    reply_kuaishou_comment,
-)
-from myUtils.wechat_comment import (
-    fetch_wechat_comments,
-    like_wechat_comment,
-    reply_wechat_comment,
-)
+from myUtils.douyin_comment import MAX_COMMENT_PAGES, CommentNotFoundError
 
 comment_bp = Blueprint("comment", __name__)
 
 DB_PATH = Path(BASE_DIR / "db" / "database.db")
-WECHAT_TYPE = 2
-DOUYIN_TYPE = 3
-KUAISHOU_TYPE = 4
 REPLY_MAX_LENGTH = 200
 
 # 同步任务状态：同一时间只允许一个同步任务
@@ -233,38 +215,13 @@ def _validate_reply_text(text):
     return text, None
 
 
-def _parse_reply_result(payload):
-    """解析抖音 multi_publish 响应，判断回复是否成功。"""
-    if not payload:
-        return False, "未收到回复响应，请稍后重试"
-    if payload.get("status_code") not in (0, None):
-        return False, f"平台返回异常状态：{payload.get('status_code')}"
-    items = payload.get("comments") or []
-    if not items:
-        return False, "回复未成功，请稍后重试"
-    code = items[0].get("code")
-    if code not in (0, None):
-        return False, f"回复失败，平台返回 code={code}"
-    return True, ""
-
-
-def _parse_flag_result(payload):
-    """解析以 result=1 表示成功的平台响应（快手、视频号）。"""
-    if not payload:
-        return False, "未收到回复响应，请稍后重试"
-    if payload.get("result") in (1, "1"):
-        return True, ""
-    message = payload.get("message") or "平台返回失败"
-    return False, f"回复失败：{message}"
-
-
 def _load_comment_target(comment_id):
     with _connect() as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             '''
             SELECT c.id, c.type, c.platformCommentId, c.content, c.authorName,
-                   c.userDigged, p.platformPostId
+                   c.userDigged, p.platformPostId, p.shareUrl
             FROM comment c
             JOIN platform_post p ON p.id = c.postId
             WHERE c.id = ?
@@ -276,84 +233,6 @@ def _load_comment_target(comment_id):
 
 def _account_file(account):
     return Path(BASE_DIR / "cookiesFile" / account["filePath"])
-
-
-def _reply_douyin(account_file, target, text):
-    return reply_douyin_comment(
-        account_file,
-        target["platformPostId"],
-        target["content"],
-        target["authorName"],
-        text,
-    )
-
-
-def _reply_kuaishou(account_file, target, text):
-    return reply_kuaishou_comment(
-        account_file,
-        target["platformPostId"],
-        target["platformCommentId"],
-        text,
-    )
-
-
-def _reply_wechat(account_file, target, text):
-    return reply_wechat_comment(
-        account_file,
-        target["platformPostId"],
-        target["platformCommentId"],
-        text,
-    )
-
-
-def _like_douyin(account_file, target):
-    return like_douyin_comment(
-        account_file,
-        target["platformPostId"],
-        target["content"],
-        target["authorName"],
-    )
-
-
-def _like_kuaishou(account_file, target):
-    return like_kuaishou_comment(
-        account_file,
-        target["platformPostId"],
-        target["platformCommentId"],
-    )
-
-
-def _like_wechat(account_file, target):
-    return like_wechat_comment(
-        account_file,
-        target["platformPostId"],
-        target["platformCommentId"],
-    )
-
-
-PLATFORMS = {
-    WECHAT_TYPE: {
-        "name": "视频号",
-        "fetch": fetch_wechat_comments,
-        "reply": _reply_wechat,
-        "like": _like_wechat,
-        "parse_reply": _parse_flag_result,
-    },
-    DOUYIN_TYPE: {
-        "name": "抖音",
-        "fetch": fetch_douyin_comments,
-        "reply": _reply_douyin,
-        "like": _like_douyin,
-        "parse_reply": _parse_reply_result,
-    },
-    KUAISHOU_TYPE: {
-        "name": "快手",
-        "fetch": fetch_kuaishou_comments,
-        "reply": _reply_kuaishou,
-        "like": _like_kuaishou,
-        "parse_reply": _parse_flag_result,
-    },
-}
 
 
 def _run_reply(platform, account, target, text):
