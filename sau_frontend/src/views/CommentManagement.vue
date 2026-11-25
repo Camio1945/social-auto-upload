@@ -36,7 +36,8 @@
         <el-tag type="danger" effect="plain">抖音</el-tag>
         <span>作品 {{ posts.length }} 个 · 评论 {{ totalSaved }} 条 · 未处理 {{ unhandledTotal }} 条</span>
         <span v-if="syncStatus.finishedAt" class="synced-at">
-          上次同步：{{ syncStatus.finishedAt }}<template v-if="syncStatus.message"> · {{ syncStatus.message }}</template>
+          上次同步：{{ syncStatus.finishedAt }}
+          <template v-if="syncStatus.message"> · {{ syncStatus.message }}</template>
         </span>
       </div>
 
@@ -124,8 +125,16 @@
           </template>
         </el-table-column>
 
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="140" fixed="right">
           <template #default="scope">
+            <el-button v-if="scope.row.userDigged === 1" type="info" link disabled>已赞</el-button>
+            <el-button
+              v-else
+              type="primary"
+              link
+              :loading="likingId === scope.row.id"
+              @click="likeComment(scope.row)"
+            >点赞</el-button>
             <el-button type="primary" link @click="openReply(scope.row)">回复</el-button>
           </template>
         </el-table-column>
@@ -161,160 +170,32 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
-import { commentApi } from '@/api/comment'
+import { useCommentManagement } from '@/composables/useCommentManagement'
 
-const comments = ref([])
-const posts = ref([])
-const handledFilter = ref('')
-const postFilter = ref(null)
-const handlingId = ref(null)
-
-// 回复弹窗
-const replyVisible = ref(false)
-const replyTarget = ref({})
-const replyText = ref('')
-const replying = ref(false)
-
-// 同步任务状态（初始值兜底，避免模板读到 undefined）
-const syncStatus = ref({
-  running: false,
-  phase: '',
-  current: 0,
-  total: 0,
-  message: '',
-  error: null,
-  truncated: [],
-  finishedAt: null
-})
-
-// 与后端 MAX_COMMENT_PAGES 保持一致，仅用于提示文案
-const maxCommentPages = 20
-
-let pollTimer = null
-
-const totalSaved = computed(() =>
-  posts.value.reduce((sum, post) => sum + (post.savedCount || 0), 0)
-)
-
-const unhandledTotal = computed(() =>
-  posts.value.reduce((sum, post) => sum + (post.unhandledCount || 0), 0)
-)
-
-const syncPercent = computed(() => {
-  const { current, total } = syncStatus.value
-  if (!total) return 0
-  return Math.min(100, Math.round((current / total) * 100))
-})
-
-const fetchComments = async () => {
-  try {
-    const res = await commentApi.getComments({
-      type: 3,
-      handled: handledFilter.value,
-      postId: postFilter.value || undefined
-    })
-    if (res.code === 200 && res.data) {
-      comments.value = res.data.comments || []
-      posts.value = res.data.posts || []
-    }
-  } catch (error) {
-    console.error('获取评论失败:', error)
-  }
-}
-
-const stopPolling = () => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-}
-
-// 轮询同步状态；结束后刷新列表
-const pollStatus = async () => {
-  try {
-    const res = await commentApi.getSyncStatus()
-    if (res.code !== 200 || !res.data) return
-    syncStatus.value = res.data
-    if (!res.data.running) {
-      const wasRunning = pollTimer !== null
-      stopPolling()
-      if (wasRunning) {
-        await fetchComments()
-      }
-    }
-  } catch (error) {
-    console.error('获取同步状态失败:', error)
-  }
-}
-
-const startSync = async () => {
-  if (syncStatus.value.running) return
-  try {
-    await commentApi.syncComments()
-    ElMessage.success('同步任务已启动')
-    await pollStatus()
-    stopPolling()
-    pollTimer = setInterval(pollStatus, 2000)
-  } catch (error) {
-    console.error('启动同步失败:', error)
-  }
-}
-
-const toggleHandled = async (row, value) => {
-  handlingId.value = row.id
-  try {
-    await commentApi.markHandled(row.id, value)
-    row.isHandled = value ? 1 : 0
-    await fetchComments()
-  } catch (error) {
-    console.error('更新评论状态失败:', error)
-  } finally {
-    handlingId.value = null
-  }
-}
-
-const openReply = (row) => {
-  replyTarget.value = row
-  replyText.value = ''
-  replyVisible.value = true
-}
-
-// 抖音回复为单行文本：输入和粘贴时直接拦掉换行与 @
-const normalizeReplyText = (value) => {
-  replyText.value = (value || '').replace(/[\r\n@]/g, '')
-}
-
-const confirmReply = async () => {
-  const text = replyText.value.trim()
-  if (!text) {
-    ElMessage.warning('请输入回复内容')
-    return
-  }
-  replying.value = true
-  try {
-    await commentApi.replyComment(replyTarget.value.id, text)
-    ElMessage.success('回复成功，已自动标记为已处理')
-    replyVisible.value = false
-    await fetchComments()
-  } catch (error) {
-    console.error('回复评论失败:', error)
-  } finally {
-    replying.value = false
-  }
-}
-
-onMounted(async () => {
-  await fetchComments()
-  await pollStatus()
-  if (syncStatus.value.running) {
-    pollTimer = setInterval(pollStatus, 2000)
-  }
-})
-
-onUnmounted(stopPolling)
+const {
+  comments,
+  posts,
+  handledFilter,
+  postFilter,
+  handlingId,
+  replyVisible,
+  replyTarget,
+  replyText,
+  replying,
+  likingId,
+  syncStatus,
+  maxCommentPages,
+  totalSaved,
+  unhandledTotal,
+  syncPercent,
+  startSync,
+  toggleHandled,
+  openReply,
+  likeComment,
+  normalizeReplyText,
+  confirmReply
+} = useCommentManagement()
 </script>
 
 <style lang="scss" scoped>

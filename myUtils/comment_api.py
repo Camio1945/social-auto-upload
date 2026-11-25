@@ -9,10 +9,12 @@ from flask import Blueprint, jsonify, request
 
 from conf import BASE_DIR
 from db.createTable import ensure_comment_tables
+from myUtils.comment_query import build_comment_query, load_comment_rows
 from myUtils.douyin_comment import (
     MAX_COMMENT_PAGES,
     CommentNotFoundError,
     fetch_douyin_comments,
+    like_douyin_comment,
     reply_douyin_comment,
 )
 
@@ -36,8 +38,8 @@ _sync_state = {
     "finishedAt": None,
 }
 
-# 回复是写操作，同时只允许一个请求，避免并发操作同一个页面
-_reply_lock = threading.Lock()
+# 回复与点赞都是写操作，共用一个锁，避免并发打开浏览器
+_write_lock = threading.Lock()
 
 
 def _connect():
@@ -112,8 +114,8 @@ def _upsert_comment(conn, post_id, comment, fetched_at):
         '''
         INSERT INTO comment
             (postId, type, platformCommentId, authorId, authorName, authorAvatar,
-             content, likeCount, replyCount, ipLabel, platformCreatedAt, fetchedAt)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             content, likeCount, replyCount, ipLabel, platformCreatedAt, fetchedAt, userDigged)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(type, platformCommentId) DO UPDATE SET
             postId = excluded.postId,
             authorId = excluded.authorId,
@@ -124,13 +126,14 @@ def _upsert_comment(conn, post_id, comment, fetched_at):
             replyCount = excluded.replyCount,
             ipLabel = excluded.ipLabel,
             platformCreatedAt = excluded.platformCreatedAt,
-            fetchedAt = excluded.fetchedAt
+            fetchedAt = excluded.fetchedAt,
+            userDigged = excluded.userDigged
         ''',
         (
             post_id, DOUYIN_TYPE, comment["platformCommentId"], comment["authorId"],
             comment["authorName"], comment["authorAvatar"], comment["content"],
             comment["likeCount"], comment["replyCount"], comment["ipLabel"],
-            comment["platformCreatedAt"], fetched_at,
+            comment["platformCreatedAt"], fetched_at, comment["userDigged"],
         ),
     )
 
@@ -225,43 +228,10 @@ def get_comments():
     handled = request.args.get('handled', default='')
     post_id = request.args.get('postId', type=int)
     limit = request.args.get('limit', default=500, type=int)
-
-    sql = '''
-        SELECT c.*, p.title AS postTitle, p.coverUrl AS postCoverUrl,
-               p.shareUrl AS postShareUrl, p.publishedAt AS postPublishedAt
-        FROM comment c
-        JOIN platform_post p ON p.id = c.postId
-        WHERE c.type = ?
-    '''
-    params = [platform_type]
-    if handled in ('0', '1'):
-        sql += ' AND c.isHandled = ?'
-        params.append(int(handled))
-    if post_id:
-        sql += ' AND c.postId = ?'
-        params.append(post_id)
-    sql += ' ORDER BY c.platformCreatedAt DESC, c.id DESC LIMIT ?'
-    params.append(limit)
-
-    posts_sql = '''
-        SELECT p.id, p.platformPostId, p.title, p.coverUrl, p.shareUrl,
-               p.commentCount, p.publishedAt, p.lastSyncedAt,
-               COUNT(c.id) AS savedCount,
-               SUM(CASE WHEN c.isHandled = 0 THEN 1 ELSE 0 END) AS unhandledCount
-        FROM platform_post p
-        LEFT JOIN comment c ON c.postId = p.id
-        WHERE p.type = ?
-        GROUP BY p.id
-        ORDER BY p.publishedAt DESC, p.id DESC
-    '''
+    sql, params = build_comment_query(platform_type, handled, post_id, limit)
 
     try:
-        with _connect() as conn:
-            conn.row_factory = sqlite3.Row
-            comments = [dict(row) for row in conn.execute(sql, params).fetchall()]
-            posts = [dict(row) for row in conn.execute(posts_sql, (platform_type,)).fetchall()]
-        for post in posts:
-            post['unhandledCount'] = post['unhandledCount'] or 0
+        comments, posts = load_comment_rows(platform_type, sql, params)
         return jsonify({
             "code": 200,
             "msg": None,
@@ -329,12 +299,12 @@ def _parse_reply_result(payload):
     return True, ""
 
 
-def _load_reply_target(comment_id):
+def _load_comment_target(comment_id):
     with _connect() as conn:
         conn.row_factory = sqlite3.Row
         row = conn.execute(
             '''
-            SELECT c.id, c.type, c.content, c.authorName, p.platformPostId
+            SELECT c.id, c.type, c.content, c.authorName, c.userDigged, p.platformPostId
             FROM comment c
             JOIN platform_post p ON p.id = c.postId
             WHERE c.id = ?
@@ -342,6 +312,48 @@ def _load_reply_target(comment_id):
             (comment_id,),
         ).fetchone()
     return dict(row) if row else None
+
+
+def _account_file(account):
+    return Path(BASE_DIR / "cookiesFile" / account["filePath"])
+
+
+def _run_reply(account, target, text):
+    payload = asyncio.run(reply_douyin_comment(
+        _account_file(account),
+        target["platformPostId"],
+        target["content"],
+        target["authorName"],
+        text,
+    ))
+    return _parse_reply_result(payload)
+
+
+def _mark_handled(comment_id):
+    handled_at = _now_str()
+    with _connect() as conn:
+        conn.execute(
+            "UPDATE comment SET isHandled = 1, handledAt = ? WHERE id = ?",
+            (handled_at, comment_id),
+        )
+        conn.commit()
+    return handled_at
+
+
+def _run_like(account, target):
+    result = asyncio.run(like_douyin_comment(
+        _account_file(account),
+        target["platformPostId"],
+        target["content"],
+        target["authorName"],
+    ))
+    return result.get("liked")
+
+
+def _mark_liked(comment_id):
+    with _connect() as conn:
+        conn.execute("UPDATE comment SET userDigged = 1 WHERE id = ?", (comment_id,))
+        conn.commit()
 
 
 @comment_bp.route('/replyComment', methods=['POST'])
@@ -356,7 +368,7 @@ def reply_comment():
     if error:
         return jsonify({"code": 400, "msg": error, "data": None}), 400
 
-    target = _load_reply_target(comment_id)
+    target = _load_comment_target(comment_id)
     if not target:
         return jsonify({"code": 404, "msg": "评论不存在", "data": None}), 404
     if target["type"] != DOUYIN_TYPE:
@@ -365,29 +377,14 @@ def reply_comment():
     account = _resolve_account(None)
     if not account:
         return jsonify({"code": 404, "msg": "未找到抖音账号，请先在账号管理中登录", "data": None}), 404
-    if not _reply_lock.acquire(blocking=False):
-        return jsonify({"code": 409, "msg": "已有回复正在发送，请稍后重试", "data": None}), 409
+    if not _write_lock.acquire(blocking=False):
+        return jsonify({"code": 409, "msg": "已有操作正在执行，请稍后重试", "data": None}), 409
 
     try:
-        account_file = Path(BASE_DIR / "cookiesFile" / account["filePath"])
-        payload = asyncio.run(reply_douyin_comment(
-            account_file,
-            target["platformPostId"],
-            target["content"],
-            target["authorName"],
-            text,
-        ))
-        ok, message = _parse_reply_result(payload)
+        ok, message = _run_reply(account, target, text)
         if not ok:
             return jsonify({"code": 502, "msg": message, "data": None}), 502
-
-        handled_at = _now_str()
-        with _connect() as conn:
-            conn.execute(
-                "UPDATE comment SET isHandled = 1, handledAt = ? WHERE id = ?",
-                (handled_at, comment_id),
-            )
-            conn.commit()
+        handled_at = _mark_handled(comment_id)
         return jsonify({
             "code": 200,
             "msg": "回复成功",
@@ -399,7 +396,54 @@ def reply_comment():
         print(f"回复抖音评论失败: {exc}")
         return jsonify({"code": 500, "msg": f"回复失败: {exc}", "data": None}), 500
     finally:
-        _reply_lock.release()
+        _write_lock.release()
+
+
+@comment_bp.route('/likeComment', methods=['POST'])
+def like_comment():
+    """给指定评论点赞；已点赞的评论直接返回，不会取消赞。"""
+    data = request.get_json(silent=True) or {}
+    comment_id = data.get("id")
+    if not isinstance(comment_id, int):
+        return jsonify({"code": 400, "msg": "评论 id 无效", "data": None}), 400
+
+    target = _load_comment_target(comment_id)
+    if not target:
+        return jsonify({"code": 404, "msg": "评论不存在", "data": None}), 404
+    if target["type"] != DOUYIN_TYPE:
+        return jsonify({"code": 400, "msg": "暂只支持抖音评论点赞", "data": None}), 400
+    if target["userDigged"]:
+        return jsonify({
+            "code": 200,
+            "msg": "该评论已点赞",
+            "data": {"id": comment_id, "userDigged": 1},
+        }), 200
+
+    account = _resolve_account(None)
+    if not account:
+        return jsonify({"code": 404, "msg": "未找到抖音账号，请先在账号管理中登录", "data": None}), 404
+    if not _write_lock.acquire(blocking=False):
+        return jsonify({"code": 409, "msg": "已有操作正在执行，请稍后重试", "data": None}), 409
+
+    try:
+        if not _run_like(account, target):
+            return jsonify({
+                "code": 502,
+                "msg": "点赞状态未确认，请先同步评论后再试",
+                "data": None,
+            }), 502
+        _mark_liked(comment_id)
+        return jsonify({
+            "code": 200, "msg": "点赞成功",
+            "data": {"id": comment_id, "userDigged": 1},
+        }), 200
+    except CommentNotFoundError as exc:
+        return jsonify({"code": 404, "msg": str(exc), "data": None}), 404
+    except Exception as exc:
+        print(f"点赞抖音评论失败: {exc}")
+        return jsonify({"code": 500, "msg": f"点赞失败: {exc}", "data": None}), 500
+    finally:
+        _write_lock.release()
 
 
 _ensure_schema()

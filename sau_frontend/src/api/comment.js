@@ -25,5 +25,10 @@ export const commentApi = {
   // 回复一级评论（由用户确认后调用）
   replyComment(id, text) {
     return http.post('/replyComment', { id, text })
+  },
+
+  // 给评论点赞（已点赞的不允许再次点击）
+  likeComment(id) {
+    return http.post('/likeComment', { id })
   }
 }

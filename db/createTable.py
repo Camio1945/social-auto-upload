@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS comment (
     ipLabel TEXT,
     platformCreatedAt TEXT,
     fetchedAt TEXT,
+    userDigged INTEGER NOT NULL DEFAULT 0,
     isHandled INTEGER NOT NULL DEFAULT 0,
     handledAt TEXT,
     FOREIGN KEY (postId) REFERENCES platform_post (id)
@@ -140,6 +141,16 @@ def ensure_comment_tables(cursor):
     cursor.execute(CREATE_COMMENT_UNIQUE_INDEX_SQL)
     cursor.execute(CREATE_COMMENT_POST_INDEX_SQL)
     cursor.execute(CREATE_COMMENT_HANDLED_INDEX_SQL)
+    ensure_comment_columns(cursor)
+
+
+def ensure_comment_columns(cursor):
+    """为旧库补上新增字段（幂等）。"""
+    cursor.execute("PRAGMA table_info(comment)")
+    columns = [row[1] for row in cursor.fetchall()]
+    if columns and "userDigged" not in columns:
+        cursor.execute("ALTER TABLE comment ADD COLUMN userDigged INTEGER NOT NULL DEFAULT 0")
+        print("✅ comment 已添加 userDigged 字段")
 
 
 def table_exists(cursor, table_name):
