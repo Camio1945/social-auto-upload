@@ -9,12 +9,18 @@ from flask import Blueprint, jsonify, request
 
 from conf import BASE_DIR
 from db.createTable import ensure_comment_tables
-from myUtils.douyin_comment import fetch_douyin_comments
+from myUtils.douyin_comment import (
+    MAX_COMMENT_PAGES,
+    CommentNotFoundError,
+    fetch_douyin_comments,
+    reply_douyin_comment,
+)
 
 comment_bp = Blueprint("comment", __name__)
 
 DB_PATH = Path(BASE_DIR / "db" / "database.db")
 DOUYIN_TYPE = 3
+REPLY_MAX_LENGTH = 200
 
 # 同步任务状态：同一时间只允许一个同步任务
 _sync_lock = threading.Lock()
@@ -25,9 +31,13 @@ _sync_state = {
     "total": 0,
     "message": "",
     "error": None,
+    "truncated": [],
     "startedAt": None,
     "finishedAt": None,
 }
+
+# 回复是写操作，同时只允许一个请求，避免并发操作同一个页面
+_reply_lock = threading.Lock()
 
 
 def _connect():
@@ -153,10 +163,15 @@ def _sync_worker(account):
         account_file = Path(BASE_DIR / "cookiesFile" / account["filePath"])
         result = asyncio.run(fetch_douyin_comments(account_file, _on_progress))
         processed = _save_result(account["id"], result)
+        truncated = result.get("truncatedPosts") or []
+        message = f"同步完成，处理评论 {processed} 条"
+        if truncated:
+            message += f"；{len(truncated)} 个作品评论超过 {MAX_COMMENT_PAGES} 页已截断"
         _update_state(
             running=False,
             phase="done",
-            message=f"同步完成，处理评论 {processed} 条",
+            message=message,
+            truncated=truncated,
             finishedAt=_now_str(),
         )
     except Exception as exc:
@@ -187,6 +202,7 @@ def sync_comments():
             total=0,
             message="正在启动同步",
             error=None,
+            truncated=[],
             startedAt=_now_str(),
             finishedAt=None,
         )
@@ -282,6 +298,108 @@ def mark_comment_handled():
     except Exception as exc:
         print(f"更新评论状态失败: {exc}")
         return jsonify({"code": 500, "msg": f"更新评论状态失败: {exc}", "data": None}), 500
+
+
+def _validate_reply_text(text):
+    """回复只允许单行纯文本：不换行、不 @ 人、不超过 200 字。"""
+    text = (text or "").strip()
+    if not text:
+        return None, "回复内容不能为空"
+    if len(text) > REPLY_MAX_LENGTH:
+        return None, f"回复内容不能超过 {REPLY_MAX_LENGTH} 个字符"
+    if "\n" in text or "\r" in text:
+        return None, "回复内容不能换行"
+    if "@" in text:
+        return None, "回复内容暂不支持 @ 用户"
+    return text, None
+
+
+def _parse_reply_result(payload):
+    """解析 multi_publish 响应，判断回复是否成功。"""
+    if not payload:
+        return False, "未收到回复响应，请稍后重试"
+    if payload.get("status_code") not in (0, None):
+        return False, f"平台返回异常状态：{payload.get('status_code')}"
+    items = payload.get("comments") or []
+    if not items:
+        return False, "回复未成功，请稍后重试"
+    code = items[0].get("code")
+    if code not in (0, None):
+        return False, f"回复失败，平台返回 code={code}"
+    return True, ""
+
+
+def _load_reply_target(comment_id):
+    with _connect() as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            '''
+            SELECT c.id, c.type, c.content, c.authorName, p.platformPostId
+            FROM comment c
+            JOIN platform_post p ON p.id = c.postId
+            WHERE c.id = ?
+            ''',
+            (comment_id,),
+        ).fetchone()
+    return dict(row) if row else None
+
+
+@comment_bp.route('/replyComment', methods=['POST'])
+def reply_comment():
+    """在抖音作品详情页通过页面 UI 回复评论，成功后自动标记已处理。"""
+    data = request.get_json(silent=True) or {}
+    comment_id = data.get("id")
+    if not isinstance(comment_id, int):
+        return jsonify({"code": 400, "msg": "评论 id 无效", "data": None}), 400
+
+    text, error = _validate_reply_text(data.get("text"))
+    if error:
+        return jsonify({"code": 400, "msg": error, "data": None}), 400
+
+    target = _load_reply_target(comment_id)
+    if not target:
+        return jsonify({"code": 404, "msg": "评论不存在", "data": None}), 404
+    if target["type"] != DOUYIN_TYPE:
+        return jsonify({"code": 400, "msg": "暂只支持抖音评论回复", "data": None}), 400
+
+    account = _resolve_account(None)
+    if not account:
+        return jsonify({"code": 404, "msg": "未找到抖音账号，请先在账号管理中登录", "data": None}), 404
+    if not _reply_lock.acquire(blocking=False):
+        return jsonify({"code": 409, "msg": "已有回复正在发送，请稍后重试", "data": None}), 409
+
+    try:
+        account_file = Path(BASE_DIR / "cookiesFile" / account["filePath"])
+        payload = asyncio.run(reply_douyin_comment(
+            account_file,
+            target["platformPostId"],
+            target["content"],
+            target["authorName"],
+            text,
+        ))
+        ok, message = _parse_reply_result(payload)
+        if not ok:
+            return jsonify({"code": 502, "msg": message, "data": None}), 502
+
+        handled_at = _now_str()
+        with _connect() as conn:
+            conn.execute(
+                "UPDATE comment SET isHandled = 1, handledAt = ? WHERE id = ?",
+                (handled_at, comment_id),
+            )
+            conn.commit()
+        return jsonify({
+            "code": 200,
+            "msg": "回复成功",
+            "data": {"id": comment_id, "isHandled": 1, "handledAt": handled_at},
+        }), 200
+    except CommentNotFoundError as exc:
+        return jsonify({"code": 404, "msg": str(exc), "data": None}), 404
+    except Exception as exc:
+        print(f"回复抖音评论失败: {exc}")
+        return jsonify({"code": 500, "msg": f"回复失败: {exc}", "data": None}), 500
+    finally:
+        _reply_lock.release()
 
 
 _ensure_schema()

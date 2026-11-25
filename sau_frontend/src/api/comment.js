@@ -20,5 +20,10 @@ export const commentApi = {
   // 标记单条评论是否已处理
   markHandled(id, handled) {
     return http.post('/markCommentHandled', { id, handled })
+  },
+
+  // 回复一级评论（由用户确认后调用）
+  replyComment(id, text) {
+    return http.post('/replyComment', { id, text })
   }
 }

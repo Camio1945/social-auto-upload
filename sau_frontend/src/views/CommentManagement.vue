@@ -36,7 +36,7 @@
         <el-tag type="danger" effect="plain">抖音</el-tag>
         <span>作品 {{ posts.length }} 个 · 评论 {{ totalSaved }} 条 · 未处理 {{ unhandledTotal }} 条</span>
         <span v-if="syncStatus.finishedAt" class="synced-at">
-          上次同步：{{ syncStatus.finishedAt }}
+          上次同步：{{ syncStatus.finishedAt }}<template v-if="syncStatus.message"> · {{ syncStatus.message }}</template>
         </span>
       </div>
 
@@ -60,6 +60,13 @@
         :closable="false"
         class="sync-alert"
         :title="syncStatus.message"
+      />
+      <el-alert
+        v-if="!syncStatus.running && syncStatus.truncated && syncStatus.truncated.length"
+        type="warning"
+        :closable="false"
+        class="sync-alert"
+        :title="`有 ${syncStatus.truncated.length} 个作品的评论超过 ${maxCommentPages} 页，已截断，请到平台查看完整评论`"
       />
 
       <el-table v-if="comments.length > 0" :data="comments" style="width: 100%">
@@ -116,12 +123,40 @@
             />
           </template>
         </el-table-column>
+
+        <el-table-column label="操作" width="90" fixed="right">
+          <template #default="scope">
+            <el-button type="primary" link @click="openReply(scope.row)">回复</el-button>
+          </template>
+        </el-table-column>
       </el-table>
 
       <div v-else class="empty-data">
         <el-empty description="暂无评论，点击右上角同步评论" />
       </div>
     </div>
+
+    <el-dialog v-model="replyVisible" title="回复评论" width="520px">
+      <div class="reply-target">
+        <div class="reply-author">回复 {{ replyTarget.authorName }}</div>
+        <div class="reply-origin">{{ replyTarget.content }}</div>
+      </div>
+      <el-input
+        v-model="replyText"
+        type="textarea"
+        :rows="4"
+        :maxlength="200"
+        show-word-limit
+        placeholder="输入回复内容"
+        @keydown.enter.prevent
+        @input="normalizeReplyText"
+      />
+      <div class="reply-hint">仅支持文本，不能换行或 @ 用户，最多 200 字</div>
+      <template #footer>
+        <el-button @click="replyVisible = false">取消</el-button>
+        <el-button type="primary" :loading="replying" @click="confirmReply">确认发送</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -137,6 +172,12 @@ const handledFilter = ref('')
 const postFilter = ref(null)
 const handlingId = ref(null)
 
+// 回复弹窗
+const replyVisible = ref(false)
+const replyTarget = ref({})
+const replyText = ref('')
+const replying = ref(false)
+
 // 同步任务状态（初始值兜底，避免模板读到 undefined）
 const syncStatus = ref({
   running: false,
@@ -145,8 +186,12 @@ const syncStatus = ref({
   total: 0,
   message: '',
   error: null,
+  truncated: [],
   finishedAt: null
 })
+
+// 与后端 MAX_COMMENT_PAGES 保持一致，仅用于提示文案
+const maxCommentPages = 20
 
 let pollTimer = null
 
@@ -228,6 +273,36 @@ const toggleHandled = async (row, value) => {
     console.error('更新评论状态失败:', error)
   } finally {
     handlingId.value = null
+  }
+}
+
+const openReply = (row) => {
+  replyTarget.value = row
+  replyText.value = ''
+  replyVisible.value = true
+}
+
+// 抖音回复为单行文本：输入和粘贴时直接拦掉换行与 @
+const normalizeReplyText = (value) => {
+  replyText.value = (value || '').replace(/[\r\n@]/g, '')
+}
+
+const confirmReply = async () => {
+  const text = replyText.value.trim()
+  if (!text) {
+    ElMessage.warning('请输入回复内容')
+    return
+  }
+  replying.value = true
+  try {
+    await commentApi.replyComment(replyTarget.value.id, text)
+    ElMessage.success('回复成功，已自动标记为已处理')
+    replyVisible.value = false
+    await fetchComments()
+  } catch (error) {
+    console.error('回复评论失败:', error)
+  } finally {
+    replying.value = false
   }
 }
 
@@ -341,6 +416,31 @@ onUnmounted(stopPolling)
     .empty-data {
       padding: 40px 0;
     }
+  }
+
+  .reply-target {
+    padding: 10px 12px;
+    margin-bottom: 12px;
+    border-radius: 4px;
+    background-color: var(--el-fill-color-light);
+
+    .reply-author {
+      margin-bottom: 6px;
+      font-size: 13px;
+      color: var(--el-text-color-secondary);
+    }
+
+    .reply-origin {
+      font-size: 14px;
+      color: var(--el-text-color-primary);
+      word-break: break-word;
+    }
+  }
+
+  .reply-hint {
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
   }
 }
 </style>
