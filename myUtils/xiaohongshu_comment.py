@@ -112,10 +112,7 @@ async def _xhs_page(account_file):
             await browser.close()
 
 
-async def _collect_works(page, rounds=10, wait=2):
-    """滚动笔记管理页，合并分页返回的笔记列表。"""
-    collected = {}
-
+def _works_response_handler(collected, state):
     async def on_response(response):
         if POSTED_API_KEY not in response.url:
             return
@@ -123,12 +120,26 @@ async def _collect_works(page, rounds=10, wait=2):
             payload = await response.json()
         except Exception:
             return
+        if payload.get("success") is False or payload.get("code") not in (0, None):
+            state["error"] = payload.get("msg") or "小红书笔记列表获取失败"
+            return
+        state["error"] = ""
+        state["seen"] = True
         for note in (payload.get("data") or {}).get("notes") or []:
             note_id = str(note.get("id") or "")
             if note_id:
                 collected[note_id] = note
 
-    handler = lambda response: asyncio.create_task(on_response(response))
+    return on_response
+
+
+async def _collect_works(page, rounds=10, wait=2):
+    """滚动笔记管理页，合并分页返回的笔记列表。"""
+    collected = {}
+    state = {"seen": False, "error": ""}
+    handler = lambda response: asyncio.create_task(
+        _works_response_handler(collected, state)(response)
+    )
     page.on("response", handler)
     try:
         await page.goto(NOTE_MANAGER_URL, wait_until="domcontentloaded", timeout=60000)
@@ -146,6 +157,10 @@ async def _collect_works(page, rounds=10, wait=2):
                 idle = 0
     finally:
         page.remove_listener("response", handler)
+    if state["error"]:
+        raise RuntimeError(state["error"])
+    if not state["seen"]:
+        raise RuntimeError("未能获取小红书笔记列表，请检查登录状态")
     return list(collected.values())
 
 
@@ -207,6 +222,8 @@ async def _collect_comments(page, work, max_pages=MAX_COMMENT_PAGES):
     page.on("response", handler)
     try:
         await page.goto(work["shareUrl"], wait_until="domcontentloaded", timeout=60000)
+        if "/404" in page.url:
+            return [], "", False
         try:
             await asyncio.wait_for(state["changed"].wait(), timeout=20)
         except asyncio.TimeoutError:
@@ -282,6 +299,8 @@ async def _wait_liked(item):
 async def _open_note_page(page, note_url):
     await page.goto(note_url, wait_until="domcontentloaded", timeout=60000)
     await asyncio.sleep(8)
+    if "/404" in page.url:
+        raise CommentNotFoundError("笔记链接已失效，请重新同步评论后再试")
 
 
 async def like_xiaohongshu_comment(account_file, note_url, platform_comment_id,
