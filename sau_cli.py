@@ -820,7 +820,7 @@ def build_parser() -> argparse.ArgumentParser:
     upload_video_parser.add_argument("--product-title", default="", help="Optional product title")
     upload_video_parser.add_argument(
         "--declaration",
-        help="Exact Douyin self-declaration option text; omitted means do not set one",
+        help="Exact Douyin self-declaration option text; defaults to 内容为个人观点或见解",
     )
     upload_video_parser.add_argument("--collection", default=None, help="Optional collection name to add the work into (must already exist)")
     add_runtime_flags(upload_video_parser)

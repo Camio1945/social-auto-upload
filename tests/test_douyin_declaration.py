@@ -15,7 +15,8 @@ class DouyinDeclarationTests(unittest.TestCase):
         )
         self.assertEqual(video.declaration, "已确认声明原文")
 
-    def test_missing_declaration_does_not_fall_back_to_personal_opinion(self):
+    def test_constructor_keeps_declaration_unset_by_default(self):
+        # 默认声明在 upload() 流程中注入（内容为个人观点或见解），构造函数不预置
         video = DouYinVideo("标题", "/tmp/demo.mp4", [], 0, "/tmp/cookie.json")
         self.assertIsNone(video.declaration)
 

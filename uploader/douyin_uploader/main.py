@@ -1069,10 +1069,10 @@ class DouYinVideo(DouYinBaseUploader):
             await self.set_product_link(page, self.productLink, self.productTitle)
             douyin_logger.info(_msg("🥳", "商品链接设置完成"))
 
-        # 自主声明：本项目成片含 AI 生成内容（TTS 配音 / AI 字幕 / AI 前贴片），
-        # 按平台合规如实选「内容由AI生成」（与转载等并列，单选，无二级选项、无需填来源）。
+        # 自主声明：默认选「内容为个人观点或见解」（用户指定），
+        # 调用方显式传入其他声明文本时以其为准。
         if not self.declaration:
-            self.declaration = "内容由AI生成"
+            self.declaration = "内容为个人观点或见解"
         await self.apply_self_declaration(page)
 
         # 先归集：此时尚未打开封面弹窗，避免 dy-creator-content-portal 封面浮层拦截合集下拉
