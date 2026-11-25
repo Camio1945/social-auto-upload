@@ -5,6 +5,7 @@ import AccountManagement from '../views/AccountManagement.vue'
 import MaterialManagement from '../views/MaterialManagement.vue'
 import PublishCenter from '../views/PublishCenter.vue'
 import PublishHistory from '../views/PublishHistory.vue'
+import CommentManagement from '../views/CommentManagement.vue'
 import About from '../views/About.vue'
 
 const routes = [
@@ -43,6 +44,12 @@ const routes = [
     name: 'PublishHistory',
     component: PublishHistory,
     meta: { title: '发布记录', filePath: 'sau_frontend/src/views/PublishHistory.vue' }
+  },
+  {
+    path: '/comment-management',
+    name: 'CommentManagement',
+    component: CommentManagement,
+    meta: { title: '评论管理', filePath: 'sau_frontend/src/views/CommentManagement.vue' }
   },
   {
     path: '/about',

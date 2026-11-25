@@ -74,6 +74,74 @@ CREATE TABLE IF NOT EXISTS publish_log (
 '''
 
 
+# 平台作品表：一条记录对应某账号在某平台的一个作品，评论挂在作品下
+CREATE_PLATFORM_POST_SQL = '''
+CREATE TABLE IF NOT EXISTS platform_post (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    accountId INTEGER NOT NULL,
+    type INTEGER NOT NULL,
+    platformPostId TEXT NOT NULL,
+    title TEXT,
+    coverUrl TEXT,
+    shareUrl TEXT,
+    commentCount INTEGER DEFAULT 0,
+    publishedAt TEXT,
+    lastSyncedAt TEXT
+)
+'''
+
+# 同一平台内作品 ID 唯一，作为同步时的幂等键
+CREATE_PLATFORM_POST_UNIQUE_INDEX_SQL = '''
+CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_post_type_post
+    ON platform_post (type, platformPostId)
+'''
+
+# 评论表：远端字段可被同步覆盖，isHandled / handledAt 只由本地操作写入
+CREATE_COMMENT_SQL = '''
+CREATE TABLE IF NOT EXISTS comment (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    postId INTEGER NOT NULL,
+    type INTEGER NOT NULL,
+    platformCommentId TEXT NOT NULL,
+    authorId TEXT,
+    authorName TEXT,
+    authorAvatar TEXT,
+    content TEXT,
+    likeCount INTEGER DEFAULT 0,
+    replyCount INTEGER DEFAULT 0,
+    ipLabel TEXT,
+    platformCreatedAt TEXT,
+    fetchedAt TEXT,
+    isHandled INTEGER NOT NULL DEFAULT 0,
+    handledAt TEXT,
+    FOREIGN KEY (postId) REFERENCES platform_post (id)
+)
+'''
+
+CREATE_COMMENT_UNIQUE_INDEX_SQL = '''
+CREATE UNIQUE INDEX IF NOT EXISTS idx_comment_type_platform_id
+    ON comment (type, platformCommentId)
+'''
+
+CREATE_COMMENT_POST_INDEX_SQL = '''
+CREATE INDEX IF NOT EXISTS idx_comment_post_id ON comment (postId)
+'''
+
+CREATE_COMMENT_HANDLED_INDEX_SQL = '''
+CREATE INDEX IF NOT EXISTS idx_comment_handled ON comment (isHandled)
+'''
+
+
+def ensure_comment_tables(cursor):
+    """创建评论相关表与索引（幂等），建库脚本与后端启动时都会调用。"""
+    cursor.execute(CREATE_PLATFORM_POST_SQL)
+    cursor.execute(CREATE_PLATFORM_POST_UNIQUE_INDEX_SQL)
+    cursor.execute(CREATE_COMMENT_SQL)
+    cursor.execute(CREATE_COMMENT_UNIQUE_INDEX_SQL)
+    cursor.execute(CREATE_COMMENT_POST_INDEX_SQL)
+    cursor.execute(CREATE_COMMENT_HANDLED_INDEX_SQL)
+
+
 def table_exists(cursor, table_name):
     cursor.execute(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
@@ -166,6 +234,7 @@ def main():
     ensure_last_checked_column(cursor)
     cursor.execute(CREATE_FILE_RECORDS_SQL)
     cursor.execute(CREATE_PUBLISH_LOG_SQL)
+    ensure_comment_tables(cursor)
 
     conn.commit()
     conn.close()

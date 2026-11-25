@@ -1,0 +1,346 @@
+<template>
+  <div class="comment-management">
+    <div class="comment-container">
+      <div class="toolbar">
+        <h3>评论管理</h3>
+        <div class="toolbar-actions">
+          <el-radio-group v-model="handledFilter" @change="fetchComments">
+            <el-radio-button value="">全部</el-radio-button>
+            <el-radio-button value="0">未处理</el-radio-button>
+            <el-radio-button value="1">已处理</el-radio-button>
+          </el-radio-group>
+
+          <el-select
+            v-model="postFilter"
+            placeholder="全部作品"
+            clearable
+            class="post-filter"
+            @change="fetchComments"
+          >
+            <el-option
+              v-for="post in posts"
+              :key="post.id"
+              :label="post.title || post.platformPostId"
+              :value="post.id"
+            />
+          </el-select>
+
+          <el-button type="primary" :loading="syncStatus.running" @click="startSync">
+            <el-icon><Refresh /></el-icon>
+            <span>{{ syncStatus.running ? '同步中' : '同步评论' }}</span>
+          </el-button>
+        </div>
+      </div>
+
+      <div class="summary">
+        <el-tag type="danger" effect="plain">抖音</el-tag>
+        <span>作品 {{ posts.length }} 个 · 评论 {{ totalSaved }} 条 · 未处理 {{ unhandledTotal }} 条</span>
+        <span v-if="syncStatus.finishedAt" class="synced-at">
+          上次同步：{{ syncStatus.finishedAt }}
+        </span>
+      </div>
+
+      <el-alert
+        v-if="syncStatus.running"
+        type="info"
+        :closable="false"
+        class="sync-alert"
+        :title="syncStatus.message"
+      >
+        <el-progress
+          v-if="syncStatus.total"
+          :percentage="syncPercent"
+          :stroke-width="6"
+          style="margin-top: 8px"
+        />
+      </el-alert>
+      <el-alert
+        v-if="syncStatus.phase === 'error'"
+        type="error"
+        :closable="false"
+        class="sync-alert"
+        :title="syncStatus.message"
+      />
+
+      <el-table v-if="comments.length > 0" :data="comments" style="width: 100%">
+        <el-table-column label="作品" min-width="230">
+          <template #default="scope">
+            <div class="post-cell">
+              <el-image
+                v-if="scope.row.postCoverUrl"
+                :src="scope.row.postCoverUrl"
+                fit="cover"
+                class="post-cover"
+              />
+              <a
+                v-if="scope.row.postShareUrl"
+                :href="scope.row.postShareUrl"
+                target="_blank"
+                rel="noopener"
+                class="post-title"
+              >
+                {{ scope.row.postTitle || scope.row.platformCommentId }}
+              </a>
+              <span v-else class="post-title">{{ scope.row.postTitle || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column label="评论者" width="160">
+          <template #default="scope">
+            <div class="author-cell">
+              <el-avatar :size="26" :src="scope.row.authorAvatar">
+                {{ (scope.row.authorName || '?').slice(0, 1) }}
+              </el-avatar>
+              <span class="author-name">{{ scope.row.authorName || '-' }}</span>
+            </div>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="content" label="评论内容" min-width="260" show-overflow-tooltip />
+
+        <el-table-column label="点赞" width="80">
+          <template #default="scope">{{ scope.row.likeCount }}</template>
+        </el-table-column>
+
+        <el-table-column label="评论时间" width="170">
+          <template #default="scope">{{ scope.row.platformCreatedAt || '-' }}</template>
+        </el-table-column>
+
+        <el-table-column label="已处理" width="100" fixed="right">
+          <template #default="scope">
+            <el-switch
+              :model-value="scope.row.isHandled === 1"
+              :loading="handlingId === scope.row.id"
+              @change="(value) => toggleHandled(scope.row, value)"
+            />
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <div v-else class="empty-data">
+        <el-empty description="暂无评论，点击右上角同步评论" />
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Refresh } from '@element-plus/icons-vue'
+import { commentApi } from '@/api/comment'
+
+const comments = ref([])
+const posts = ref([])
+const handledFilter = ref('')
+const postFilter = ref(null)
+const handlingId = ref(null)
+
+// 同步任务状态（初始值兜底，避免模板读到 undefined）
+const syncStatus = ref({
+  running: false,
+  phase: '',
+  current: 0,
+  total: 0,
+  message: '',
+  error: null,
+  finishedAt: null
+})
+
+let pollTimer = null
+
+const totalSaved = computed(() =>
+  posts.value.reduce((sum, post) => sum + (post.savedCount || 0), 0)
+)
+
+const unhandledTotal = computed(() =>
+  posts.value.reduce((sum, post) => sum + (post.unhandledCount || 0), 0)
+)
+
+const syncPercent = computed(() => {
+  const { current, total } = syncStatus.value
+  if (!total) return 0
+  return Math.min(100, Math.round((current / total) * 100))
+})
+
+const fetchComments = async () => {
+  try {
+    const res = await commentApi.getComments({
+      type: 3,
+      handled: handledFilter.value,
+      postId: postFilter.value || undefined
+    })
+    if (res.code === 200 && res.data) {
+      comments.value = res.data.comments || []
+      posts.value = res.data.posts || []
+    }
+  } catch (error) {
+    console.error('获取评论失败:', error)
+  }
+}
+
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+// 轮询同步状态；结束后刷新列表
+const pollStatus = async () => {
+  try {
+    const res = await commentApi.getSyncStatus()
+    if (res.code !== 200 || !res.data) return
+    syncStatus.value = res.data
+    if (!res.data.running) {
+      const wasRunning = pollTimer !== null
+      stopPolling()
+      if (wasRunning) {
+        await fetchComments()
+      }
+    }
+  } catch (error) {
+    console.error('获取同步状态失败:', error)
+  }
+}
+
+const startSync = async () => {
+  if (syncStatus.value.running) return
+  try {
+    await commentApi.syncComments()
+    ElMessage.success('同步任务已启动')
+    await pollStatus()
+    stopPolling()
+    pollTimer = setInterval(pollStatus, 2000)
+  } catch (error) {
+    console.error('启动同步失败:', error)
+  }
+}
+
+const toggleHandled = async (row, value) => {
+  handlingId.value = row.id
+  try {
+    await commentApi.markHandled(row.id, value)
+    row.isHandled = value ? 1 : 0
+    await fetchComments()
+  } catch (error) {
+    console.error('更新评论状态失败:', error)
+  } finally {
+    handlingId.value = null
+  }
+}
+
+onMounted(async () => {
+  await fetchComments()
+  await pollStatus()
+  if (syncStatus.value.running) {
+    pollTimer = setInterval(pollStatus, 2000)
+  }
+})
+
+onUnmounted(stopPolling)
+</script>
+
+<style lang="scss" scoped>
+@use '@/styles/variables.scss' as *;
+
+.comment-management {
+  .comment-container {
+    background-color: var(--el-bg-color);
+    border-radius: 4px;
+    box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+    padding: 20px;
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+
+      h3 {
+        margin: 0;
+        font-size: 16px;
+        font-weight: 500;
+        color: var(--el-text-color-primary);
+      }
+
+      .toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+
+        .post-filter {
+          width: 240px;
+        }
+      }
+    }
+
+    .summary {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 10px 12px;
+      margin-bottom: 16px;
+      border-radius: 4px;
+      background-color: var(--el-fill-color-light);
+      font-size: 13px;
+      color: var(--el-text-color-regular);
+
+      .synced-at {
+        margin-left: auto;
+        color: var(--el-text-color-secondary);
+      }
+    }
+
+    .sync-alert {
+      margin-bottom: 16px;
+    }
+
+    .post-cell {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      .post-cover {
+        width: 40px;
+        height: 40px;
+        border-radius: 4px;
+        flex-shrink: 0;
+      }
+
+      .post-title {
+        color: var(--el-text-color-primary);
+        text-decoration: none;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &:hover {
+          color: var(--el-color-primary);
+        }
+      }
+    }
+
+    .author-cell {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+
+      .author-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+
+    .empty-data {
+      padding: 40px 0;
+    }
+  }
+}
+</style>

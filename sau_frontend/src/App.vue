@@ -40,6 +40,10 @@
               <el-icon><Document /></el-icon>
               <span>发布记录</span>
             </el-menu-item>
+            <el-menu-item index="/comment-management">
+              <el-icon><ChatDotRound /></el-icon>
+              <span>评论管理</span>
+            </el-menu-item>
             <el-menu-item index="/about">
               <el-icon><DataAnalysis /></el-icon>
               <span>关于</span>
@@ -74,7 +78,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   HomeFilled, User, DataAnalysis,
-  Fold, Picture, Upload, CollectionTag, Document
+  Fold, Picture, Upload, CollectionTag, Document, ChatDotRound
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
