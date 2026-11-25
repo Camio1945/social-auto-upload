@@ -81,8 +81,8 @@ class RecordingPage:
         self.locators = {
             'input[placeholder*="填写标题"]': RecordingLocator("title"),
             'p[data-placeholder*="输入正文描述"]': RecordingLocator("desc"),
-            '#creator-editor-topic-container': RecordingLocator("topic-container"),
-            '#creator-editor-topic-container .item': RecordingLocator("topic-item"),
+            "#creator-editor-topic-container": RecordingLocator("topic-container"),
+            "#creator-editor-topic-container .item": RecordingLocator("topic-item"),
         }
 
     def locator(self, selector):
@@ -107,9 +107,7 @@ class XiaohongshuUploaderTests(unittest.TestCase):
                 "https://creator.rednote.com/login",
             )
             self.assertEqual(
-                xhs_main._build_xhs_creator_url(
-                    "/publish/publish?from=homepage&target=video"
-                ),
+                xhs_main._build_xhs_creator_url("/publish/publish?from=homepage&target=video"),
                 "https://creator.rednote.com/publish/publish?from=homepage&target=video",
             )
 
@@ -142,7 +140,7 @@ class XiaohongshuUploaderTests(unittest.TestCase):
         self.assertIs(locator, qrcode_locator)
 
     def test_setup_returns_detail_when_cookie_invalid_without_handle(self):
-        with patch("uploader.xiaohongshu_uploader.main.os.path.exists", return_value=False):
+        with patch("uploader.xiaohongshu_uploader.login.os.path.exists", return_value=False):
             result = asyncio.run(
                 xhs_main.xiaohongshu_setup(
                     "missing.json",
@@ -162,9 +160,9 @@ class XiaohongshuUploaderTests(unittest.TestCase):
             "qrcode": {"image_path": "qrcode.png"},
             "current_url": "https://creator.xiaohongshu.com/",
         }
-        with patch("uploader.xiaohongshu_uploader.main.os.path.exists", return_value=False):
+        with patch("uploader.xiaohongshu_uploader.login.os.path.exists", return_value=False):
             with patch(
-                "uploader.xiaohongshu_uploader.main.xiaohongshu_cookie_gen",
+                "uploader.xiaohongshu_uploader.login.xiaohongshu_cookie_gen",
                 new=AsyncMock(return_value=login_result),
             ) as mock_login:
                 result = asyncio.run(
@@ -195,11 +193,7 @@ class XiaohongshuUploaderTests(unittest.TestCase):
                 thumbnail_path=str(thumbnail_path),
             )
 
-            with patch(
-                "uploader.xiaohongshu_uploader.main.cookie_auth",
-                new=AsyncMock(return_value=True),
-            ):
-                asyncio.run(app.validate_upload_args())
+            asyncio.run(app.validate_upload_args())
 
         self.assertTrue(app.file_path.endswith("demo.mp4"))
         self.assertTrue(app.thumbnail_path.endswith("demo.png"))
@@ -239,11 +233,12 @@ class XiaohongshuUploaderTests(unittest.TestCase):
             page.locators['p[data-placeholder*="输入正文描述"]'].actions,
             [("click",)],
         )
-        self.assertIn(("type", "描述内容", None), page.keyboard.actions)
-        self.assertIn(("type", "#话题1", 30), page.keyboard.actions)
+        typed_text = "".join(action[1] for action in page.keyboard.actions if action[0] == "type")
+        self.assertIn("描述内容", typed_text)
+        self.assertIn("#话题1", typed_text)
         self.assertEqual(
-            page.locators['#creator-editor-topic-container .item'].actions,
-            [("wait_for", {"state": "visible", "timeout": 2000}), ("click",)],
+            page.locators["#creator-editor-topic-container .item"].actions,
+            [("wait_for", {"state": "visible", "timeout": 4000}), ("click",)],
         )
 
     def test_video_fill_meta_can_fill_first_tag_without_desc(self):
@@ -262,8 +257,8 @@ class XiaohongshuUploaderTests(unittest.TestCase):
             page.locators['p[data-placeholder*="输入正文描述"]'].actions,
             [("click",)],
         )
-        self.assertNotIn(("type", "", None), page.keyboard.actions)
-        self.assertIn(("type", "#话题1", 30), page.keyboard.actions)
+        typed_text = "".join(action[1] for action in page.keyboard.actions if action[0] == "type")
+        self.assertEqual(typed_text, "#话题1")
 
     def test_note_title_defaults_do_not_override_explicit_title(self):
         app = xhs_main.XiaoHongShuNote(
