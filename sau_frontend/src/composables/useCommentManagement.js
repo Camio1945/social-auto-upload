@@ -4,23 +4,7 @@ import { commentApi } from '@/api/comment'
 
 // 评论管理页的状态与操作，按职责拆成多个组合函数
 
-function createCommentState() {
-  const comments = ref([])
-  const posts = ref([])
-  const handledFilter = ref('')
-  const postFilter = ref(null)
-  const syncStatus = ref({
-    running: false,
-    phase: '',
-    current: 0,
-    total: 0,
-    message: '',
-    error: null,
-    truncated: [],
-    finishedAt: null
-  })
-  // 与后端 MAX_COMMENT_PAGES 保持一致，仅用于提示文案
-  const maxCommentPages = 20
+function createCommentStats(posts, syncStatus) {
   const totalSaved = computed(() =>
     posts.value.reduce((sum, post) => sum + (post.savedCount || 0), 0)
   )
@@ -32,16 +16,41 @@ function createCommentState() {
     if (!total) return 0
     return Math.min(100, Math.round((current / total) * 100))
   })
+  return { totalSaved, unhandledTotal, syncPercent }
+}
+
+function createCommentState() {
+  const comments = ref([])
+  const posts = ref([])
+  const platformType = ref(3)
+  const handledFilter = ref('')
+  const postFilter = ref(null)
+  const syncStatus = ref({
+    running: false,
+    type: null,
+    phase: '',
+    current: 0,
+    total: 0,
+    message: '',
+    error: null,
+    truncated: [],
+    finishedAt: null
+  })
+  // 与后端 MAX_COMMENT_PAGES 保持一致，仅用于提示文案
+  const maxCommentPages = 20
+  const platformNames = { 3: '抖音', 4: '快手' }
+  const platformName = computed(() => platformNames[platformType.value] || '未知平台')
+  const stats = createCommentStats(posts, syncStatus)
   return {
     comments,
     posts,
+    platformType,
+    platformName,
     handledFilter,
     postFilter,
     syncStatus,
     maxCommentPages,
-    totalSaved,
-    unhandledTotal,
-    syncPercent
+    ...stats
   }
 }
 
@@ -49,7 +58,7 @@ function useCommentList(state) {
   const fetchComments = async () => {
     try {
       const res = await commentApi.getComments({
-        type: 3,
+        type: state.platformType.value,
         handled: state.handledFilter.value,
         postId: state.postFilter.value || undefined
       })
@@ -95,7 +104,8 @@ function useCommentSync(state, fetchComments) {
     if (data.running) return
     const wasRunning = pollTimer !== null
     stopPolling()
-    if (wasRunning) await fetchComments()
+    const samePlatform = !data.type || data.type === state.platformType.value
+    if (wasRunning && samePlatform) await fetchComments()
   }
 
   const pollStatus = async () => {
@@ -115,7 +125,7 @@ function useCommentSync(state, fetchComments) {
   const startSync = async () => {
     if (state.syncStatus.value.running) return
     try {
-      await commentApi.syncComments()
+      await commentApi.syncComments(state.platformType.value)
       ElMessage.success('同步任务已启动')
       await pollStatus()
       startTimer()
@@ -199,6 +209,11 @@ export function useCommentManagement() {
   const like = useCommentLike(fetchComments)
   const reply = useCommentReply(fetchComments)
 
+  const changePlatform = () => {
+    state.postFilter.value = null
+    return fetchComments()
+  }
+
   onMounted(async () => {
     await fetchComments()
     await sync.pollStatus()
@@ -206,5 +221,5 @@ export function useCommentManagement() {
   })
   onUnmounted(sync.stopPolling)
 
-  return { ...state, ...handled, ...sync, ...like, ...reply }
+  return { ...state, ...handled, ...sync, ...like, ...reply, fetchComments, changePlatform }
 }

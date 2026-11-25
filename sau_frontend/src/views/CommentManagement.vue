@@ -4,6 +4,11 @@
       <div class="toolbar">
         <h3>评论管理</h3>
         <div class="toolbar-actions">
+          <el-radio-group v-model="platformType" @change="changePlatform">
+            <el-radio-button :value="3">抖音</el-radio-button>
+            <el-radio-button :value="4">快手</el-radio-button>
+          </el-radio-group>
+
           <el-radio-group v-model="handledFilter" @change="fetchComments">
             <el-radio-button value="">全部</el-radio-button>
             <el-radio-button value="0">未处理</el-radio-button>
@@ -33,16 +38,18 @@
       </div>
 
       <div class="summary">
-        <el-tag type="danger" effect="plain">抖音</el-tag>
+        <el-tag :type="platformType === 3 ? 'danger' : 'warning'" effect="plain">
+          {{ platformName }}
+        </el-tag>
         <span>作品 {{ posts.length }} 个 · 评论 {{ totalSaved }} 条 · 未处理 {{ unhandledTotal }} 条</span>
-        <span v-if="syncStatus.finishedAt" class="synced-at">
+        <span v-if="syncStatus.finishedAt && syncStatus.type === platformType" class="synced-at">
           上次同步：{{ syncStatus.finishedAt }}
           <template v-if="syncStatus.message"> · {{ syncStatus.message }}</template>
         </span>
       </div>
 
       <el-alert
-        v-if="syncStatus.running"
+        v-if="syncStatus.running && syncStatus.type === platformType"
         type="info"
         :closable="false"
         class="sync-alert"
@@ -56,14 +63,15 @@
         />
       </el-alert>
       <el-alert
-        v-if="syncStatus.phase === 'error'"
+        v-if="syncStatus.phase === 'error' && syncStatus.type === platformType"
         type="error"
         :closable="false"
         class="sync-alert"
         :title="syncStatus.message"
       />
       <el-alert
-        v-if="!syncStatus.running && syncStatus.truncated && syncStatus.truncated.length"
+        v-if="!syncStatus.running && syncStatus.type === platformType
+          && syncStatus.truncated && syncStatus.truncated.length"
         type="warning"
         :closable="false"
         class="sync-alert"
@@ -176,6 +184,8 @@ import { useCommentManagement } from '@/composables/useCommentManagement'
 const {
   comments,
   posts,
+  platformType,
+  platformName,
   handledFilter,
   postFilter,
   handlingId,
@@ -189,6 +199,8 @@ const {
   totalSaved,
   unhandledTotal,
   syncPercent,
+  changePlatform,
+  fetchComments,
   startSync,
   toggleHandled,
   openReply,
