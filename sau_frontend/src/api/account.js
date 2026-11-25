@@ -22,6 +22,11 @@ export const accountApi = {
     return http.post('/updateUserinfo', data)
   },
 
+  // 使用已保存的 Cookie 打开平台发布页
+  openAccount(id) {
+    return http.post('/openAccount', { id })
+  },
+
   // 删除账号
   deleteAccount(id) {
     return http.get(`/deleteAccount?id=${id}`)

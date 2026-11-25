@@ -1,5 +1,7 @@
-"""账号接口：账号列表、状态校验、删除与编辑。"""
+"""账号接口：账号列表、状态校验、删除、编辑与打开发布页。"""
+import asyncio
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +14,18 @@ account_bp = Blueprint("account", __name__)
 
 DB_PATH = Path(BASE_DIR / "db" / "database.db")
 LAST_CHECKED_COLUMN = "lastCheckedAt"
+
+# 各平台的发布页地址：用已保存的 Cookie 直接拉起浏览器供人工操作
+PUBLISH_URLS = {
+    1: "https://creator.xiaohongshu.com/publish/publish?from=homepage&target=video",
+    2: "https://channels.weixin.qq.com/platform/post/create",
+    3: "https://creator.douyin.com/creator-micro/content/upload",
+    4: "https://cp.kuaishou.com/article/publish/video",
+}
+
+# 同一账号只允许一个浏览器窗口，窗口关闭后自动释放
+_open_lock = threading.Lock()
+_open_accounts = set()
 
 
 def _connect():
@@ -136,6 +150,78 @@ def remove_cookie_file(record):
         print(f"✅ Cookie文件已删除: {cookie_file_path}")
     except Exception as e:
         print(f"⚠️ 删除Cookie文件失败: {e}")
+
+
+async def _open_publish_page(cookie_path, url):
+    """用已保存的 Cookie 打开有头浏览器，直到用户关闭窗口。"""
+    from patchright.async_api import async_playwright
+
+    from conf import get_browser_options
+    from utils.base_social_media import set_init_script
+
+    async with async_playwright() as pw:
+        options = {**get_browser_options(), "headless": False}
+        browser = await pw.chromium.launch(**options)
+        try:
+            context = await browser.new_context(
+                storage_state=str(cookie_path), no_viewport=True
+            )
+            context = await set_init_script(context)
+            page = await context.new_page()
+            closed = asyncio.Event()
+            page.on("close", lambda _: closed.set())
+            browser.on("disconnected", lambda _: closed.set())
+            await page.goto(url, wait_until="domcontentloaded", timeout=60000)
+            await closed.wait()
+        finally:
+            await browser.close()
+
+
+def _open_worker(account_id, cookie_path, url, user_name):
+    """后台线程保持浏览器存活；窗口关闭后释放账号占用。"""
+    try:
+        asyncio.run(_open_publish_page(cookie_path, url))
+    except Exception as exc:
+        print(f"⚠️ 打开 {user_name} 的发布页失败: {exc}")
+    finally:
+        with _open_lock:
+            _open_accounts.discard(account_id)
+
+
+@account_bp.route("/openAccount", methods=['POST'])
+def open_account():
+    """使用账号已保存的 Cookie 打开平台发布页。"""
+    data = request.get_json(silent=True) or {}
+    account_id = data.get("id")
+    if not isinstance(account_id, int):
+        return jsonify({"code": 400, "msg": "账号 id 无效", "data": None}), 400
+
+    record = get_account_record(account_id)
+    if not record:
+        return jsonify({"code": 404, "msg": "账号不存在", "data": None}), 404
+    url = PUBLISH_URLS.get(record.get("type"))
+    if not url:
+        return jsonify({"code": 400, "msg": "暂不支持该平台", "data": None}), 400
+
+    cookie_file_path = Path(BASE_DIR / "cookiesFile" / (record.get("filePath") or ""))
+    if not record.get("filePath") or not cookie_file_path.exists():
+        return jsonify({
+            "code": 404,
+            "msg": "Cookie 文件不存在，请先登录",
+            "data": None,
+        }), 404
+
+    with _open_lock:
+        if account_id in _open_accounts:
+            return jsonify({"code": 409, "msg": "该账号的浏览器已打开", "data": None}), 409
+        _open_accounts.add(account_id)
+
+    threading.Thread(
+        target=_open_worker,
+        args=(account_id, cookie_file_path, url, record.get("userName") or ""),
+        daemon=True,
+    ).start()
+    return jsonify({"code": 200, "msg": "已打开发布页", "data": None}), 200
 
 
 @account_bp.route("/getAccounts", methods=['GET'])

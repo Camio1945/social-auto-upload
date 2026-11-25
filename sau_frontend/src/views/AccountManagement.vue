@@ -38,6 +38,7 @@
             <div v-if="visibleAccounts.length > 0" class="account-list">
               <AccountTable
                 :accounts="visibleAccounts"
+                @open="handleOpenAccount"
                 @relogin="handleReLogin"
                 @edit="handleEdit"
                 @download="handleDownloadCookie"
@@ -118,6 +119,7 @@ const {
   handleReLogin,
   handleStatusClick,
   handleDelete,
+  handleOpenAccount,
   handleDownloadCookie,
   handleUploadCookie,
   handleDialogSubmit

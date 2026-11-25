@@ -24,7 +24,16 @@ const createDialogState = () => {
     platform: [{ required: true, message: '请选择平台', trigger: 'change' }],
     name: [{ required: true, message: '请选择账号名称', trigger: 'change' }]
   }
-  return { dialogVisible, dialogType, accountForm, sseConnecting, qrCodeData, loginStatus, eventSource, rules }
+  return {
+    dialogVisible,
+    dialogType,
+    accountForm,
+    sseConnecting,
+    qrCodeData,
+    loginStatus,
+    eventSource,
+    rules
+  }
 }
 
 // 按平台过滤可选名称：同一名称在同一平台只能有一个账号
@@ -203,7 +212,9 @@ const handleDelete = (ctx, row) => {
 }
 
 const handleDownloadCookie = (row) => {
-  const downloadUrl = `${getApiBaseUrl()}/downloadCookie?filePath=${encodeURIComponent(row.filePath)}`
+  const downloadUrl = `${getApiBaseUrl()}/downloadCookie?filePath=${
+    encodeURIComponent(row.filePath)
+  }`
   const link = document.createElement('a')
   link.href = downloadUrl
   link.download = `${row.name}_cookie.json`
@@ -212,6 +223,15 @@ const handleDownloadCookie = (row) => {
   document.body.appendChild(link)
   link.click()
   document.body.removeChild(link)
+}
+
+const handleOpenAccount = async (row) => {
+  try {
+    await accountApi.openAccount(row.id)
+    ElMessage.success('已打开发布页')
+  } catch (error) {
+    console.error('打开发布页失败:', error)
+  }
 }
 
 const uploadCookieFile = async (ctx, file, row) => {
@@ -286,11 +306,18 @@ const handleDialogSubmit = (state, ctx) => {
   })
 }
 
-export function useAccountDialog({ nameOptions, fetchNameOptions, fetchAccounts, getDefaultPlatform }) {
+export function useAccountDialog({
+  nameOptions,
+  fetchNameOptions,
+  fetchAccounts,
+  getDefaultPlatform
+}) {
   const accountStore = useAccountStore()
   const state = createDialogState()
   const ctx = { accountStore, fetchNameOptions, fetchAccounts, getDefaultPlatform }
-  const { availableNameOptions, nameHint } = createNameAvailability(state, accountStore, nameOptions)
+  const { availableNameOptions, nameHint } = createNameAvailability(
+    state, accountStore, nameOptions
+  )
 
   onBeforeUnmount(() => closeSSE(state))
 
@@ -312,6 +339,7 @@ export function useAccountDialog({ nameOptions, fetchNameOptions, fetchAccounts,
     handleReLogin: (row) => handleReLogin(state, ctx, row),
     handleStatusClick: (row) => handleStatusClick(state, ctx, row),
     handleDelete: (row) => handleDelete(ctx, row),
+    handleOpenAccount: (row) => handleOpenAccount(row),
     handleDownloadCookie: (row) => handleDownloadCookie(row),
     handleUploadCookie: (row) => handleUploadCookie(ctx, row),
     handleDialogSubmit: () => handleDialogSubmit(state, ctx)

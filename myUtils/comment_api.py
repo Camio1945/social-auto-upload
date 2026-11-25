@@ -22,10 +22,16 @@ from myUtils.kuaishou_comment import (
     like_kuaishou_comment,
     reply_kuaishou_comment,
 )
+from myUtils.wechat_comment import (
+    fetch_wechat_comments,
+    like_wechat_comment,
+    reply_wechat_comment,
+)
 
 comment_bp = Blueprint("comment", __name__)
 
 DB_PATH = Path(BASE_DIR / "db" / "database.db")
+WECHAT_TYPE = 2
 DOUYIN_TYPE = 3
 KUAISHOU_TYPE = 4
 REPLY_MAX_LENGTH = 200
@@ -92,9 +98,9 @@ def _on_progress(info):
 
 
 def _sync_worker(account, platform_type):
+    platform = PLATFORMS[platform_type]
     try:
         account_file = Path(BASE_DIR / "cookiesFile" / account["filePath"])
-        platform = PLATFORMS[platform_type]
         result = asyncio.run(platform["fetch"](account_file, _on_progress))
         processed = save_result(account["id"], platform_type, result)
         truncated = result.get("truncatedPosts") or []
@@ -109,7 +115,7 @@ def _sync_worker(account, platform_type):
             finishedAt=now_str(),
         )
     except Exception as exc:
-        print(f"同步抖音评论失败: {exc}")
+        print(f"同步{platform['name']}评论失败: {exc}")
         _update_state(
             running=False,
             phase="error",
@@ -242,8 +248,8 @@ def _parse_reply_result(payload):
     return True, ""
 
 
-def _parse_kuaishou_result(payload):
-    """解析快手评论接口响应，result 为 1 视为成功。"""
+def _parse_flag_result(payload):
+    """解析以 result=1 表示成功的平台响应（快手、视频号）。"""
     if not payload:
         return False, "未收到回复响应，请稍后重试"
     if payload.get("result") in (1, "1"):
@@ -291,6 +297,15 @@ def _reply_kuaishou(account_file, target, text):
     )
 
 
+def _reply_wechat(account_file, target, text):
+    return reply_wechat_comment(
+        account_file,
+        target["platformPostId"],
+        target["platformCommentId"],
+        text,
+    )
+
+
 def _like_douyin(account_file, target):
     return like_douyin_comment(
         account_file,
@@ -308,7 +323,22 @@ def _like_kuaishou(account_file, target):
     )
 
 
+def _like_wechat(account_file, target):
+    return like_wechat_comment(
+        account_file,
+        target["platformPostId"],
+        target["platformCommentId"],
+    )
+
+
 PLATFORMS = {
+    WECHAT_TYPE: {
+        "name": "视频号",
+        "fetch": fetch_wechat_comments,
+        "reply": _reply_wechat,
+        "like": _like_wechat,
+        "parse_reply": _parse_flag_result,
+    },
     DOUYIN_TYPE: {
         "name": "抖音",
         "fetch": fetch_douyin_comments,
@@ -321,7 +351,7 @@ PLATFORMS = {
         "fetch": fetch_kuaishou_comments,
         "reply": _reply_kuaishou,
         "like": _like_kuaishou,
-        "parse_reply": _parse_kuaishou_result,
+        "parse_reply": _parse_flag_result,
     },
 }
 

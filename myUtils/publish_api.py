@@ -1,5 +1,6 @@
 """发布与登录接口：扫码登录、视频发布、Cookie 上传下载。"""
 import asyncio
+import json
 import sqlite3
 import threading
 import time
@@ -15,7 +16,12 @@ from myUtils.account_api import (
     mark_account_valid,
     user_name_exists,
 )
-from myUtils.login import get_tencent_cookie, douyin_cookie_gen, get_ks_cookie, xiaohongshu_cookie_gen
+from myUtils.login import (
+    douyin_cookie_gen,
+    get_ks_cookie,
+    get_tencent_cookie,
+    xiaohongshu_cookie_gen,
+)
 from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks, post_video_xhs
 from myUtils.publish_log import (
     PUBLISH_LOG_FAILED,
@@ -73,6 +79,51 @@ def find_cookie_path(account_id):
             'SELECT filePath FROM user_info WHERE id = ?', (account_id,)
         ).fetchone()
     return result['filePath'] if result else None
+
+
+SAME_SITE_MAP = {
+    "no_restriction": "None",
+    "none": "None",
+    "lax": "Lax",
+    "strict": "Strict",
+}
+
+
+def _convert_cookie_export(items):
+    """把浏览器扩展导出的 Cookie 数组转成 Playwright storage_state 结构。"""
+    cookies = []
+    for item in items:
+        expiration = item.get("expires", item.get("expirationDate"))
+        expires = -1 if item.get("session") or not expiration else int(float(expiration))
+        same_site = SAME_SITE_MAP.get(str(item.get("sameSite") or "").lower(), "Lax")
+        cookies.append({
+            "name": item.get("name") or "",
+            "value": item.get("value") or "",
+            "domain": item.get("domain") or "",
+            "path": item.get("path") or "/",
+            "expires": expires,
+            "httpOnly": bool(item.get("httpOnly")),
+            "secure": bool(item.get("secure")),
+            "sameSite": same_site,
+        })
+    return {"cookies": cookies, "origins": []}
+
+
+def _load_uploaded_cookie(file):
+    """读取上传的 Cookie：兼容扩展导出的数组和 Playwright storage_state。"""
+    payload = json.load(file)
+    if isinstance(payload, list):
+        return _convert_cookie_export(payload)
+    if isinstance(payload, dict) and isinstance(payload.get("cookies"), list):
+        return payload
+    raise ValueError("需要 Cookie 数组或含 cookies 字段的对象")
+
+
+def _save_cookie_payload(cookie_file_path, payload):
+    cookie_file_path.parent.mkdir(parents=True, exist_ok=True)
+    cookie_file_path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
 
 
 def parse_login_request():
@@ -256,17 +307,9 @@ def upload_cookie():
                 "data": None
             }), 400
 
-        file_path = find_cookie_path(account_id)
-        if not file_path:
-            return jsonify({
-                "code": 500,
-                "msg": "账号不存在",
-                "data": None
-            }), 404
-
-        cookie_file_path = Path(BASE_DIR / "cookiesFile" / file_path)
-        cookie_file_path.parent.mkdir(parents=True, exist_ok=True)
-        file.save(str(cookie_file_path))
+        error = _save_uploaded_cookie(file, account_id)
+        if error:
+            return error
 
         return jsonify({
             "code": 200,
@@ -280,6 +323,26 @@ def upload_cookie():
             "msg": f"上传Cookie文件失败: {str(e)}",
             "data": None
         }), 500
+
+
+def _save_uploaded_cookie(file, account_id):
+    """归一化上传的 Cookie 并写入账号文件；返回错误响应或 None。"""
+    file_path = find_cookie_path(account_id)
+    if not file_path:
+        return jsonify({"code": 404, "msg": "账号不存在", "data": None}), 404
+
+    try:
+        payload = _load_uploaded_cookie(file)
+    except (ValueError, json.JSONDecodeError) as exc:
+        return jsonify({
+            "code": 400,
+            "msg": f"Cookie 文件解析失败: {exc}",
+            "data": None
+        }), 400
+
+    cookie_file_path = Path(BASE_DIR / "cookiesFile" / file_path)
+    _save_cookie_payload(cookie_file_path, payload)
+    return None
 
 
 # Cookie文件下载API
