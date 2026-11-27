@@ -6,6 +6,8 @@ from flask_cors import CORS
 
 from myUtils.account_api import account_bp
 from myUtils.comment_api import comment_bp
+from myUtils.keepalive import start_scheduler
+from myUtils.keepalive_api import keepalive_bp
 from myUtils.material_api import material_bp
 from myUtils.publish_api import publish_bp
 from myUtils.user_name_api import user_name_bp
@@ -24,6 +26,10 @@ app.register_blueprint(material_bp)
 app.register_blueprint(account_bp)
 app.register_blueprint(publish_bp)
 app.register_blueprint(comment_bp)
+app.register_blueprint(keepalive_bp)
+
+# 视频号登录态保活调度（后台线程，按配置的间隔执行）
+start_scheduler()
 
 # 获取当前目录（假设 index.html 和 assets 在这里）
 current_dir = os.path.dirname(os.path.abspath(__file__))

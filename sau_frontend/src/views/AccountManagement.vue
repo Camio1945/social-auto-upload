@@ -35,6 +35,7 @@
           :name="tab.name"
         >
           <div class="account-list-container">
+            <KeepaliveCard v-if="tab.name === 'channels'" @done="handleKeepaliveDone" />
             <div v-if="visibleAccounts.length > 0" class="account-list">
               <AccountTable
                 :accounts="visibleAccounts"
@@ -76,6 +77,7 @@ import { computed, ref } from 'vue'
 import { Refresh } from '@element-plus/icons-vue'
 import AccountTable from './account/AccountTable.vue'
 import AccountDialog from './account/AccountDialog.vue'
+import KeepaliveCard from './account/KeepaliveCard.vue'
 import { useAccountStatus } from '@/composables/useAccountStatus'
 import { useAccountDialog } from '@/composables/useAccountDialog'
 
@@ -90,12 +92,21 @@ const platformTabs = [
   { name: 'all', label: '全部', platform: '', emptyText: '暂无账号数据' },
   { name: 'douyin', label: '抖音', platform: '抖音', emptyText: '暂无抖音账号数据' },
   { name: 'kuaishou', label: '快手', platform: '快手', emptyText: '暂无快手账号数据' },
-  { name: 'channels', label: '视频号', platform: '视频号', emptyText: '暂无视频号账号数据' },
-  { name: 'xiaohongshu', label: '小红书', platform: '小红书', emptyText: '暂无小红书账号数据' }
+  { name: 'channels', label: '视频号', platform: '视频号', emptyText: '暂无视频号账号数据' }
 ]
 
 // 账号列表加载与状态校验
-const { accountStore, appStore, nameOptions, fetchNameOptions, fetchAccounts } = useAccountStatus()
+const {
+  accountStore,
+  appStore,
+  nameOptions,
+  fetchNameOptions,
+  fetchAccounts,
+  refreshAccountsQuick
+} = useAccountStatus()
+
+// 保活执行后只做快速刷新，避免再次全量校验
+const handleKeepaliveDone = () => refreshAccountsQuick()
 
 // 添加账号时默认选中当前标签页对应的平台
 const getDefaultPlatform = () => {

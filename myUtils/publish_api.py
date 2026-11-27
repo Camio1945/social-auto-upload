@@ -20,9 +20,8 @@ from myUtils.login import (
     douyin_cookie_gen,
     get_ks_cookie,
     get_tencent_cookie,
-    xiaohongshu_cookie_gen,
 )
-from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks, post_video_xhs
+from myUtils.postVideo import post_video_tencent, post_video_DouYin, post_video_ks
 from myUtils.publish_log import (
     PUBLISH_LOG_FAILED,
     PUBLISH_LOG_SUCCESS,
@@ -41,9 +40,6 @@ def dispatch_publish(args):
     """按平台调用对应的发布函数；平台不支持时返回 False。"""
     platform_type = args['type']
     match platform_type:
-        case 1:
-            post_video_xhs(args['title'], args['file_list'], args['tags'], args['account_list'],
-                           args['category'])
         case 2:
             post_video_tencent(args['title'], args['file_list'], args['tags'], args['account_list'],
                                args['category'], args['is_draft'])
@@ -128,7 +124,7 @@ def _save_cookie_payload(cookie_file_path, payload):
 
 def parse_login_request():
     """解析登录参数，返回 (平台类型, 账号名, 账号ID, 错误响应或 None)。"""
-    # 1 小红书 2 视频号 3 抖音 4 快手
+    # 2 视频号 3 抖音 4 快手（小红书已停用）
     try:
         platform_type = int(request.args.get('type'))
     except (TypeError, ValueError):
@@ -277,7 +273,8 @@ def get_publish_logs():
         with sqlite3.connect(Path(BASE_DIR / "db" / "database.db")) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                'SELECT * FROM publish_log ORDER BY id DESC LIMIT ?', (limit,)
+                'SELECT * FROM publish_log WHERE type <> 1 ORDER BY id DESC LIMIT ?',
+                (limit,)
             ).fetchall()
         data = [deserialize_publish_log(dict(row)) for row in rows]
         return jsonify({"code": 200, "msg": None, "data": data}), 200
@@ -391,7 +388,6 @@ def download_cookie():
 
 # 平台类型与登录函数的对应关系
 LOGIN_HANDLERS = {
-    '1': xiaohongshu_cookie_gen,
     '2': get_tencent_cookie,
     '3': douyin_cookie_gen,
     '4': get_ks_cookie,

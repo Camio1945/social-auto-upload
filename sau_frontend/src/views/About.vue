@@ -22,7 +22,6 @@
           <el-tag type="danger">抖音</el-tag>
           <el-tag type="success">快手</el-tag>
           <el-tag type="warning">视频号</el-tag>
-          <el-tag type="info">小红书</el-tag>
         </div>
       </div>
 

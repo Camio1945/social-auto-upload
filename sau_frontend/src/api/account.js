@@ -30,5 +30,20 @@ export const accountApi = {
   // 删除账号
   deleteAccount(id) {
     return http.get(`/deleteAccount?id=${id}`)
+  },
+
+  // 视频号登录态保活配置
+  getKeepaliveConfig() {
+    return http.get('/keepalive/config')
+  },
+
+  // 更新保活开关与间隔
+  updateKeepaliveConfig(data) {
+    return http.post('/keepalive/config', data)
+  },
+
+  // 立即执行一次保活
+  runKeepalive() {
+    return http.post('/keepalive/run')
   }
 }

@@ -13,7 +13,6 @@
           <el-radio-button value="抖音">抖音</el-radio-button>
           <el-radio-button value="快手">快手</el-radio-button>
           <el-radio-button value="视频号">视频号</el-radio-button>
-          <el-radio-button value="小红书">小红书</el-radio-button>
         </el-radio-group>
       </el-form-item>
       <el-form-item label="名称" prop="name">

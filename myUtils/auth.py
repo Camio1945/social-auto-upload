@@ -13,10 +13,9 @@ def _load_checkers():
     from uploader.douyin_uploader.main import cookie_auth as douyin_auth
     from uploader.ks_uploader.main import cookie_auth as ks_auth
     from uploader.tencent_uploader.main import cookie_auth as tencent_auth
-    from uploader.xiaohongshu_uploader.main import cookie_auth as xhs_auth
 
-    # 平台类型：1 小红书 2 视频号 3 抖音 4 快手
-    return {1: xhs_auth, 2: tencent_auth, 3: douyin_auth, 4: ks_auth}
+    # 平台类型：2 视频号 3 抖音 4 快手（小红书已停用）
+    return {2: tencent_auth, 3: douyin_auth, 4: ks_auth}
 
 
 def resolve_cookie_path(file_path) -> Path:

@@ -46,9 +46,6 @@
                 <el-tooltip content="视频号账号" placement="top">
                   <el-tag size="small" type="warning">{{ platformStats.channels }}</el-tag>
                 </el-tooltip>
-                <el-tooltip content="小红书账号" placement="top">
-                  <el-tag size="small" type="info">{{ platformStats.xiaohongshu }}</el-tag>
-                </el-tooltip>
               </div>
             </div>
           </el-card>
@@ -189,20 +186,24 @@ const platformStats = computed(() => {
   const kuaishou = accounts.filter(a => a.platform === '快手').length
   const douyin = accounts.filter(a => a.platform === '抖音').length
   const channels = accounts.filter(a => a.platform === '视频号').length
-  const xiaohongshu = accounts.filter(a => a.platform === '小红书').length
   // 统计有账号的平台数量
-  const total = [kuaishou, douyin, channels, xiaohongshu].filter(n => n > 0).length
-  return { total, kuaishou, douyin, channels, xiaohongshu }
+  const total = [kuaishou, douyin, channels].filter(n => n > 0).length
+  return { total, kuaishou, douyin, channels }
 })
 
 // 素材统计数据 - 从真实数据计算
 const videoExtensions = ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.mkv']
 const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
 
+const hasExtension = (filename, extensions) => {
+  const name = (filename || '').toLowerCase()
+  return extensions.some(ext => name.endsWith(ext))
+}
+
 const contentStats = computed(() => {
   const materials = appStore.materials
-  const videos = materials.filter(m => videoExtensions.some(ext => m.filename.toLowerCase().endsWith(ext))).length
-  const images = materials.filter(m => imageExtensions.some(ext => m.filename.toLowerCase().endsWith(ext))).length
+  const videos = materials.filter(m => hasExtension(m.filename, videoExtensions)).length
+  const images = materials.filter(m => hasExtension(m.filename, imageExtensions)).length
   return {
     total: materials.length,
     videos,

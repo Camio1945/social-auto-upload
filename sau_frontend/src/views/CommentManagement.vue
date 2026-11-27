@@ -5,10 +5,9 @@
         <h3>评论管理</h3>
         <div class="toolbar-actions">
           <el-radio-group v-model="platformType" @change="changePlatform">
-            <el-radio-button :value="1">小红书</el-radio-button>
-            <el-radio-button :value="2">视频号</el-radio-button>
             <el-radio-button :value="3">抖音</el-radio-button>
             <el-radio-button :value="4">快手</el-radio-button>
+            <el-radio-button :value="2">视频号</el-radio-button>
           </el-radio-group>
 
           <el-radio-group v-model="handledFilter" @change="fetchComments">

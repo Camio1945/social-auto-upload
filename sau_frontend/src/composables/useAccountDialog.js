@@ -5,7 +5,7 @@ import { http } from '@/utils/request'
 import { useAccountStore } from '@/stores/account'
 
 // 平台名称与后端 type 的对应关系
-const platformTypeMap = { '小红书': 1, '视频号': 2, '抖音': 3, '快手': 4 }
+const platformTypeMap = { '视频号': 2, '抖音': 3, '快手': 4 }
 const LOGIN_SUCCESS_DELAY = 1000
 const LOGIN_FAIL_RESET_DELAY = 2000
 

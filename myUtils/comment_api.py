@@ -53,6 +53,11 @@ def _update_state(**kwargs):
         _sync_state.update(kwargs)
 
 
+def is_busy():
+    """视频号保活前调用：评论同步或写操作进行中时先让路，避免并发开浏览器。"""
+    return _sync_state["running"] or _write_lock.locked()
+
+
 def _resolve_account(account_id, platform_type=DOUYIN_TYPE):
     """按 id 取指定平台账号；未指定时取该平台第一个账号。"""
     with _connect() as conn:

@@ -17,13 +17,7 @@ from myUtils.wechat_comment import (
     like_wechat_comment,
     reply_wechat_comment,
 )
-from myUtils.xiaohongshu_comment import (
-    fetch_xiaohongshu_comments,
-    like_xiaohongshu_comment,
-    reply_xiaohongshu_comment,
-)
 
-XHS_TYPE = 1
 WECHAT_TYPE = 2
 DOUYIN_TYPE = 3
 KUAISHOU_TYPE = 4
@@ -45,7 +39,7 @@ def _parse_reply_result(payload):
 
 
 def _parse_flag_result(payload):
-    """解析以 result=1 表示成功的平台响应（快手、视频号、小红书）。"""
+    """解析以 result=1 表示成功的平台响应（快手、视频号）。"""
     if not payload:
         return False, "未收到回复响应，请稍后重试"
     if payload.get("result") in (1, "1"):
@@ -82,15 +76,6 @@ def _reply_wechat(account_file, target, text):
     )
 
 
-def _reply_xhs(account_file, target, text):
-    return reply_xiaohongshu_comment(
-        account_file,
-        target["shareUrl"],
-        target["platformCommentId"],
-        text,
-    )
-
-
 def _like_douyin(account_file, target):
     return like_douyin_comment(
         account_file,
@@ -116,22 +101,7 @@ def _like_wechat(account_file, target):
     )
 
 
-def _like_xhs(account_file, target):
-    return like_xiaohongshu_comment(
-        account_file,
-        target["shareUrl"],
-        target["platformCommentId"],
-    )
-
-
 PLATFORMS = {
-    XHS_TYPE: {
-        "name": "小红书",
-        "fetch": fetch_xiaohongshu_comments,
-        "reply": _reply_xhs,
-        "like": _like_xhs,
-        "parse_reply": _parse_flag_result,
-    },
     WECHAT_TYPE: {
         "name": "视频号",
         "fetch": fetch_wechat_comments,

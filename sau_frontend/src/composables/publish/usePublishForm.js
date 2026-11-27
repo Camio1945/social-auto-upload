@@ -1,17 +1,19 @@
 import { reactive } from 'vue'
 
-// 平台列表 - 对应后端 type 字段
+// 平台列表 - 对应后端 type 字段（小红书已停用）
 export const platforms = [
   { key: 3, name: '抖音' },
   { key: 4, name: '快手' },
-  { key: 2, name: '视频号' },
-  { key: 1, name: '小红书' }
+  { key: 2, name: '视频号' }
 ]
+
+// 历史发布记录可能仍含小红书，仅用于展示名称
+const HISTORY_PLATFORM_NAMES = { 1: '小红书' }
 
 // 根据平台编号获取平台名称
 export const getPlatformName = (type) => {
   const platform = platforms.find(item => item.key === type)
-  return platform ? platform.name : String(type)
+  return platform ? platform.name : (HISTORY_PLATFORM_NAMES[type] || String(type))
 }
 
 // 发布中心的表单默认值（单页面，无多 tab）

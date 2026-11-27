@@ -118,6 +118,8 @@ export function useAccountStatus() {
   const { nameOptions, fetchNameOptions } = createNameOptions()
 
   const fetchAccounts = () => fetchValidAccounts(accountStore, appStore)
+  // 不带校验的快速刷新：保活等后台动作改了状态后同步到列表
+  const refreshAccountsQuick = () => fetchAccountsQuick(accountStore)
 
   onMounted(async () => {
     fetchNameOptions()
@@ -130,5 +132,12 @@ export function useAccountStatus() {
     await fetchValidAccounts(accountStore, appStore, true)
   })
 
-  return { accountStore, appStore, nameOptions, fetchNameOptions, fetchAccounts }
+  return {
+    accountStore,
+    appStore,
+    nameOptions,
+    fetchNameOptions,
+    fetchAccounts,
+    refreshAccountsQuick
+  }
 }

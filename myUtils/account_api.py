@@ -17,7 +17,6 @@ LAST_CHECKED_COLUMN = "lastCheckedAt"
 
 # 各平台的发布页地址：用已保存的 Cookie 直接拉起浏览器供人工操作
 PUBLISH_URLS = {
-    1: "https://creator.xiaohongshu.com/publish/publish?from=homepage&target=video",
     2: "https://channels.weixin.qq.com/platform/post/create",
     3: "https://creator.douyin.com/creator-micro/content/upload",
     4: "https://cp.kuaishou.com/article/publish/video",
@@ -47,8 +46,11 @@ def _now_str():
 
 
 def _fetch_account_rows():
+    # 小红书（type=1）已停用，历史账号不再展示
     with _connect() as conn:
-        return [list(row) for row in conn.execute("SELECT * FROM user_info").fetchall()]
+        return [list(row) for row in conn.execute(
+            "SELECT * FROM user_info WHERE type <> 1"
+        ).fetchall()]
 
 
 def _write_status(account_id, valid, checked_at):

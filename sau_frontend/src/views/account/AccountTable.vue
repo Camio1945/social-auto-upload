@@ -90,8 +90,7 @@ const getPlatformTagType = (platform) => {
   const typeMap = {
     '快手': 'success',
     '抖音': 'danger',
-    '视频号': 'warning',
-    '小红书': 'info'
+    '视频号': 'warning'
   }
   return typeMap[platform] || 'info'
 }

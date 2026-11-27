@@ -101,6 +101,10 @@ def _report(progress, phase, current, total, message):
         })
 
 
+class WechatAuthError(RuntimeError):
+    """登录态明确失效（接口正常返回但缺少 finderUsername），与请求异常区分。"""
+
+
 class WechatCommentClient:
     """基于登录 Cookie 的直连接口客户端；写操作前都会先读远端状态。"""
 
@@ -145,7 +149,7 @@ class WechatCommentClient:
         data = await self.post("/auth/auth_data", {})
         finder_id = (data.get("finderUser") or {}).get("finderUsername") or ""
         if not finder_id:
-            raise RuntimeError("视频号登录态无效，请重新登录后再试")
+            raise WechatAuthError("视频号登录态无效，请重新登录后再试")
         self.finder_id = finder_id
         return self
 

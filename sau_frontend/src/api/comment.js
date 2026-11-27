@@ -2,7 +2,7 @@ import { http } from '@/utils/request'
 
 // 评论管理相关API
 export const commentApi = {
-  // 启动同步任务（后台线程执行），type: 1 小红书 / 2 视频号 / 3 抖音 / 4 快手
+  // 启动同步任务（后台线程执行），type: 2 视频号 / 3 抖音 / 4 快手
   syncComments(type = 3) {
     return http.post('/syncComments', { type })
   },

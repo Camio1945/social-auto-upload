@@ -38,7 +38,7 @@ function createCommentState() {
   })
   // 与后端 MAX_COMMENT_PAGES 保持一致，仅用于提示文案
   const maxCommentPages = 20
-  const platformNames = { 1: '小红书', 2: '视频号', 3: '抖音', 4: '快手' }
+  const platformNames = { 2: '视频号', 3: '抖音', 4: '快手' }
   const platformName = computed(() => platformNames[platformType.value] || '未知平台')
   const stats = createCommentStats(posts, syncStatus)
   return {
